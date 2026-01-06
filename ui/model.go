@@ -39,7 +39,6 @@ type (
 )
 
 func NewModel(agent *ai.Agent) tea.Model {
-
 	ti := textinput.New()
 
 	ti.Placeholder = "Type a message..."
