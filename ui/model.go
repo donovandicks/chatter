@@ -16,18 +16,24 @@ import (
 )
 
 type model struct {
-	viewport  viewport.Model
-	textInput textinput.Model
-	messages  []string
-	agent     *ai.Agent
-	spinner   spinner.Model
-	isLoading bool
-	err       error
+	viewport        viewport.Model
+	textInput       textinput.Model
+	messages        []string
+	agent           *ai.Agent
+	spinner         spinner.Model
+	isLoading       bool
+	err             error
+	allFiles        []string
+	suggestions     []string
+	suggestionIdx   int
+	showSuggestions bool
 }
 
 var (
-	senderStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("5"))
-	botStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("6"))
+	senderStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("5"))
+	botStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("6"))
+	suggestionStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+	selectedStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("205")).Bold(true)
 )
 
 type (
@@ -50,14 +56,18 @@ func NewModel(agent *ai.Agent) tea.Model {
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 
+	files, _ := listFiles(".")
+
 	return model{
-		textInput: ti,
-		viewport:  vp,
-		messages:  []string{welcomeMsg},
-		agent:     agent,
-		spinner:   s,
-		isLoading: false,
-		err:       nil,
+		textInput:       ti,
+		viewport:        vp,
+		messages:        []string{welcomeMsg},
+		agent:           agent,
+		spinner:         s,
+		isLoading:       false,
+		err:             nil,
+		allFiles:        files,
+		showSuggestions: false,
 	}
 }
 
@@ -72,11 +82,76 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		spCmd tea.Cmd
 	)
 
+	// Handle autocomplete navigation before text input updates
+	if m.showSuggestions {
+		switch msg := msg.(type) {
+		case tea.KeyMsg:
+			switch msg.Type {
+			case tea.KeyUp:
+				if m.suggestionIdx > 0 {
+					m.suggestionIdx--
+				}
+				return m, nil
+			case tea.KeyDown:
+				if m.suggestionIdx < len(m.suggestions)-1 {
+					m.suggestionIdx++
+				}
+				return m, nil
+			case tea.KeyEnter, tea.KeyTab:
+				if len(m.suggestions) > 0 {
+					selected := m.suggestions[m.suggestionIdx]
+					cursor := m.textInput.Position()
+					value := m.textInput.Value()
+					
+					// Find the start of the current @mention
+					start := strings.LastIndex(value[:cursor], "@")
+					if start != -1 {
+						newValue := value[:start] + selected + " " + value[cursor:]
+						m.textInput.SetValue(newValue)
+						m.textInput.SetCursor(start + len(selected) + 1)
+						m.showSuggestions = false
+						return m, nil
+					}
+				}
+			case tea.KeyEsc:
+				m.showSuggestions = false
+				return m, nil
+			}
+		}
+	}
+
 	m.textInput, tiCmd = m.textInput.Update(msg)
 	m.viewport, vpCmd = m.viewport.Update(msg)
 	if m.isLoading {
 		m.spinner, spCmd = m.spinner.Update(msg)
 	}
+
+	// Check for trigger to show/update suggestions
+	cursor := m.textInput.Position()
+	value := m.textInput.Value()
+	lastAt := strings.LastIndex(value[:cursor], "@")
+	
+	if lastAt != -1 {
+		// potential mention, check if there are spaces between @ and cursor
+		query := value[lastAt+1 : cursor]
+		if !strings.Contains(query, " ") {
+			m.suggestions = filterFiles(m.allFiles, query)
+			if len(m.suggestions) > 0 {
+				m.showSuggestions = true
+				// Keep index in bounds if list shrinks
+				if m.suggestionIdx >= len(m.suggestions) {
+					m.suggestionIdx = 0
+				}
+			} else {
+				m.showSuggestions = false
+			}
+		} else {
+			m.showSuggestions = false
+		}
+	} else {
+		m.showSuggestions = false
+	}
+
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -87,10 +162,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		switch msg.Type {
-		case tea.KeyCtrlC, tea.KeyEsc:
+		case tea.KeyCtrlC:
 			return m, tea.Quit
 		case tea.KeyEnter:
-			if m.textInput.Value() != "" && !m.isLoading {
+			if m.textInput.Value() != "" && !m.isLoading && !m.showSuggestions {
 				userText := m.textInput.Value()
 				userMsg := senderStyle.Render("You: ") + userText
 				m.messages = append(m.messages, userMsg)
@@ -138,6 +213,29 @@ func (m model) View() string {
 		return fmt.Sprintf("Error: %v\nPress Ctrl+C to quit.", m.err)
 	}
 
+	var suggestionsView string
+	if m.showSuggestions {
+		var views []string
+		start := 0
+		if m.suggestionIdx > 5 {
+			start = m.suggestionIdx - 5
+		}
+		end := start + 5
+		if end > len(m.suggestions) {
+			end = len(m.suggestions)
+		}
+
+		for i, s := range m.suggestions[start:end] {
+			idx := start + i
+			if idx == m.suggestionIdx {
+				views = append(views, selectedStyle.Render("> "+s))
+			} else {
+				views = append(views, suggestionStyle.Render("  "+s))
+			}
+		}
+		suggestionsView = "\n" + strings.Join(views, "\n")
+	}
+
 	if m.isLoading {
 		return fmt.Sprintf(
 			"%s\n\n%s %s",
@@ -148,8 +246,9 @@ func (m model) View() string {
 	}
 
 	return fmt.Sprintf(
-		"%s\n\n%s",
+		"%s%s\n\n%s",
 		m.viewport.View(),
+		suggestionsView,
 		m.textInput.View(),
 	) + "\n"
 }
