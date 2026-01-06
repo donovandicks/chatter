@@ -41,20 +41,24 @@ func loadAgentPrompt() (string, error) {
 }
 
 // NewAgent creates a new Agent instance with a configured GenAI client and system prompt.
-func NewAgent(ctx context.Context) (*Agent, error) {
+func NewAgent(ctx context.Context, prompt *string) (*Agent, error) {
 	client, err := genai.NewClient(ctx, nil)
 	if err != nil {
 		return nil, errors.Join(fmt.Errorf("failed to create AI client"), err)
 	}
 
-	sysPrompt, err := loadAgentPrompt()
-	if err != nil {
-		return nil, errors.Join(fmt.Errorf("failed to load agent system prompt"), err)
+	sysPrompt := prompt
+	if sysPrompt == nil {
+		defaultPrompt, err := loadAgentPrompt()
+		if err != nil {
+			return nil, errors.Join(fmt.Errorf("failed to load agent system prompt"), err)
+		}
+		sysPrompt = &defaultPrompt
 	}
 
 	return &Agent{
 		client:       client,
-		systemPrompt: sysPrompt,
+		systemPrompt: *sysPrompt,
 		tools:        registerTools(),
 		history:      make([]*genai.Content, 0),
 	}, nil
