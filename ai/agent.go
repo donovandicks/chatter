@@ -23,6 +23,7 @@ type Agent struct {
 	client       *genai.Client
 	systemPrompt string
 	tools        map[string]tools.FunctionTool
+	history      []*genai.Content
 }
 
 func loadAgentPrompt() (string, error) {
@@ -48,10 +49,15 @@ func NewAgent(ctx context.Context) (*Agent, error) {
 	return &Agent{
 		client:       client,
 		systemPrompt: sysPrompt,
-		tools: map[string]tools.FunctionTool{
-			"read_file": new(tools.ReadFile),
-		},
+		tools:        registerTools(),
+		history:      make([]*genai.Content, 0),
 	}, nil
+}
+
+func registerTools() map[string]tools.FunctionTool {
+	return map[string]tools.FunctionTool{
+		"read_file": new(tools.ReadFile),
+	}
 }
 
 func (a *Agent) SendMessage(ctx context.Context, model GoogleModel, prompt string) (string, error) {
@@ -60,15 +66,19 @@ func (a *Agent) SendMessage(ctx context.Context, model GoogleModel, prompt strin
 		funcDecls = append(funcDecls, t.Decl())
 	}
 
-	contents := []*genai.Content{
-		genai.NewContentFromText(prompt, genai.RoleUser),
-	}
+	// Add user message to history
+	a.history = append(a.history, genai.NewContentFromText(prompt, genai.RoleUser))
+
+	// We work with a copy of history for the current turn to handle tool interactions
+	// The final model response will be appended to the main history.
+	// However, tool calls and responses MUST be part of the history for the model to "see" them in the loop.
+	// So we append to a.history as we go.
 
 	for {
 		response, err := a.client.Models.GenerateContent(
 			ctx,
 			string(model),
-			contents,
+			a.history,
 			&genai.GenerateContentConfig{
 				SystemInstruction: genai.NewContentFromText(a.systemPrompt, genai.RoleModel),
 				Tools: []*genai.Tool{
@@ -88,6 +98,9 @@ func (a *Agent) SendMessage(ctx context.Context, model GoogleModel, prompt strin
 		}
 
 		candidate := response.Candidates[0]
+		
+		// Add the model's response (which might be a tool call) to history
+		a.history = append(a.history, candidate.Content)
 
 		var functionCalls []*genai.FunctionCall
 		for _, part := range candidate.Content.Parts {
@@ -96,12 +109,12 @@ func (a *Agent) SendMessage(ctx context.Context, model GoogleModel, prompt strin
 			}
 		}
 
+		// If no function calls, we are done. Return text.
 		if len(functionCalls) == 0 {
 			return response.Text(), nil
 		}
 
-		contents = append(contents, candidate.Content)
-
+		// Handle function calls
 		for _, fc := range functionCalls {
 			tool, ok := a.tools[fc.Name]
 			var resp map[string]any
@@ -116,7 +129,8 @@ func (a *Agent) SendMessage(ctx context.Context, model GoogleModel, prompt strin
 				}
 			}
 
-			contents = append(contents, &genai.Content{
+			// Add tool response to history
+			toolResponseContent := &genai.Content{
 				Role: "tool",
 				Parts: []*genai.Part{
 					{
@@ -126,7 +140,8 @@ func (a *Agent) SendMessage(ctx context.Context, model GoogleModel, prompt strin
 						},
 					},
 				},
-			})
+			}
+			a.history = append(a.history, toolResponseContent)
 		}
 	}
 }
