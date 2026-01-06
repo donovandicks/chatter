@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 
+	"github.com/donovandicks/chatter/ai/tools"
 	"google.golang.org/genai"
 )
 
@@ -58,6 +59,13 @@ func (a *Agent) SendMessage(ctx context.Context, model GoogleModel, prompt strin
 		},
 		&genai.GenerateContentConfig{
 			SystemInstruction: genai.NewContentFromText(a.systemPrompt, genai.RoleModel),
+			Tools: []*genai.Tool{
+				{
+					FunctionDeclarations: []*genai.FunctionDeclaration{
+						new(tools.ReadFile).Decl(),
+					},
+				},
+			},
 		},
 	)
 	if err != nil {
