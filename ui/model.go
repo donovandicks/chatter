@@ -216,13 +216,27 @@ func (m model) View() string {
 	var suggestionsView string
 	if m.showSuggestions {
 		var views []string
+		
+		// Window size
+		windowSize := 5
+		
+		// Ensure the selected index is visible
+		// We want start <= suggestionIdx < end
+		
+		// Simple scrolling logic: keep selection in the middle if possible, or at least visible
 		start := 0
-		if m.suggestionIdx > 5 {
-			start = m.suggestionIdx - 5
+		if m.suggestionIdx >= windowSize {
+			start = m.suggestionIdx - windowSize + 1
 		}
-		end := start + 5
+		
+		end := start + windowSize
 		if end > len(m.suggestions) {
 			end = len(m.suggestions)
+			// Adjust start if we hit the bottom but have space at the top
+			start = end - windowSize
+			if start < 0 {
+				start = 0
+			}
 		}
 
 		for i, s := range m.suggestions[start:end] {

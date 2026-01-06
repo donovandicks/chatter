@@ -15,12 +15,19 @@ func listFiles(root string) ([]string, error) {
 			return err
 		}
 
-		// Ignore .git directory
-		if d.IsDir() && d.Name() == ".git" {
-			return filepath.SkipDir
+		// Ignore .git, node_modules, vendor directories
+		if d.IsDir() {
+			if d.Name() == ".git" || d.Name() == "node_modules" || d.Name() == "vendor" {
+				return filepath.SkipDir
+			}
 		}
 
 		if !d.IsDir() {
+			// Ignore .env files
+			if d.Name() == ".env" {
+				return nil
+			}
+
 			rel, err := filepath.Rel(root, path)
 			if err != nil {
 				return err
