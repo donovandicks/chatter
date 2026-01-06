@@ -15,10 +15,16 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+type chatMessage struct {
+	Sender  string
+	Content string
+	IsUser  bool
+}
+
 type model struct {
 	viewport        viewport.Model
 	textInput       textinput.Model
-	messages        []string
+	messages        []chatMessage
 	agent           *ai.Agent
 	spinner         spinner.Model
 	isLoading       bool
@@ -28,13 +34,6 @@ type model struct {
 	suggestionIdx   int
 	showSuggestions bool
 }
-
-var (
-	senderStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("5"))
-	botStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("6"))
-	suggestionStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
-	selectedStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("205")).Bold(true)
-)
 
 type (
 	agentResponseMsg string
@@ -48,9 +47,18 @@ func NewModel(agent *ai.Agent) tea.Model {
 	ti.CharLimit = 156
 	ti.Width = 20
 
-	welcomeMsg := "Welcome to Chatter! Type a message and press Enter."
+	welcomeMsg := chatMessage{
+		Sender:  "System",
+		Content: "Welcome to Chatter! Type a message and press Enter.",
+		IsUser:  false,
+	}
+
 	vp := viewport.New(30, 5)
-	vp.SetContent(welcomeMsg)
+	
+	// We'll set content in the first Update/View or initialization if possible, 
+	// but viewport needs width to render correctly. 
+	// For now, simple text or wait for WindowSizeMsg.
+	vp.SetContent(welcomeMsg.Content) 
 
 	s := spinner.New()
 	s.Spinner = spinner.Dot
@@ -61,7 +69,7 @@ func NewModel(agent *ai.Agent) tea.Model {
 	return model{
 		textInput:       ti,
 		viewport:        vp,
-		messages:        []string{welcomeMsg},
+		messages:        []chatMessage{welcomeMsg},
 		agent:           agent,
 		spinner:         s,
 		isLoading:       false,
@@ -157,7 +165,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.viewport.Width = msg.Width
 		m.textInput.Width = msg.Width
-		m.viewport.Height = msg.Height - 5
+		m.viewport.Height = msg.Height - 10 // Adjust for input + suggestions space
 		m.viewport.SetContent(m.renderMessages())
 
 	case tea.KeyMsg:
@@ -167,8 +175,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyEnter:
 			if m.textInput.Value() != "" && !m.isLoading && !m.showSuggestions {
 				userText := m.textInput.Value()
-				userMsg := senderStyle.Render("You: ") + userText
-				m.messages = append(m.messages, userMsg)
+				m.messages = append(m.messages, chatMessage{
+					Sender:  "You",
+					Content: userText,
+					IsUser:  true,
+				})
 				m.viewport.SetContent(m.renderMessages())
 				m.textInput.SetValue("")
 				m.viewport.GotoBottom()
@@ -180,8 +191,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case agentResponseMsg:
 		m.isLoading = false
-		botMsg := botStyle.Render("Gemini: ") + string(msg)
-		m.messages = append(m.messages, botMsg)
+		m.messages = append(m.messages, chatMessage{
+			Sender:  "Gemini",
+			Content: string(msg),
+			IsUser:  false,
+		})
 		m.viewport.SetContent(m.renderMessages())
 		m.viewport.GotoBottom()
 		return m, tea.Batch(tiCmd, vpCmd)
@@ -197,15 +211,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m model) renderMessages() string {
 	if m.viewport.Width == 0 {
-		return strings.Join(m.messages, "\n")
+		return "Initializing..."
 	}
 
-	style := lipgloss.NewStyle().Width(m.viewport.Width)
-	var wrapped []string
+	var rendered []string
 	for _, msg := range m.messages {
-		wrapped = append(wrapped, style.Render(msg))
+		rendered = append(rendered, renderMessage(msg.Sender, msg.Content, msg.IsUser, m.viewport.Width))
 	}
-	return strings.Join(wrapped, "\n")
+	return strings.Join(rendered, "\n")
 }
 
 func (m model) View() string {
@@ -221,9 +234,6 @@ func (m model) View() string {
 		windowSize := 5
 		
 		// Ensure the selected index is visible
-		// We want start <= suggestionIdx < end
-		
-		// Simple scrolling logic: keep selection in the middle if possible, or at least visible
 		start := 0
 		if m.suggestionIdx >= windowSize {
 			start = m.suggestionIdx - windowSize + 1
@@ -242,12 +252,15 @@ func (m model) View() string {
 		for i, s := range m.suggestions[start:end] {
 			idx := start + i
 			if idx == m.suggestionIdx {
-				views = append(views, selectedStyle.Render("> "+s))
+				views = append(views, selectedSuggestionStyle.Render("> "+s))
 			} else {
 				views = append(views, suggestionStyle.Render("  "+s))
 			}
 		}
-		suggestionsView = "\n" + strings.Join(views, "\n")
+		
+		// Wrap suggestions in a container
+		content := strings.Join(views, "\n")
+		suggestionsView = "\n" + suggestionContainerStyle.Render(content)
 	}
 
 	if m.isLoading {
