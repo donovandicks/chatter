@@ -16,6 +16,9 @@ import (
 //go:embed agent_system.md
 var agentSystemPrompt string
 
+//go:embed planner.md
+var plannerSystemPrompt string
+
 // GeminiModel represents the specific Gemini model version to use.
 type GeminiModel string
 
@@ -31,6 +34,29 @@ type Agent struct {
 	systemPrompt string
 	tools        map[string]tools.FunctionTool
 	history      []*genai.Content
+	// registry keeps track of available sub-agents for delegation
+	registry map[string]*AgentConfig
+}
+
+// AgentConfig defines the configuration for an AI agent.
+type AgentConfig struct {
+	Name         string
+	Model        GeminiModel
+	SystemPrompt string
+	Tools        []tools.FunctionTool
+}
+
+// Global registry of agent configurations
+var agentRegistry = map[string]AgentConfig{
+	"planner": {
+		Name:         "planner",
+		Model:        Gemini3Pro, // Use smarter model for planning
+		SystemPrompt: plannerSystemPrompt,
+		Tools: []tools.FunctionTool{
+			&tools.ReadFile{},
+		},
+	},
+	// Add more agents here
 }
 
 func loadAgentPrompt() (string, error) {
@@ -40,34 +66,85 @@ func loadAgentPrompt() (string, error) {
 	return agentSystemPrompt, nil
 }
 
-// NewAgent creates a new Agent instance with a configured GenAI client and system prompt.
-func NewAgent(ctx context.Context, prompt *string) (*Agent, error) {
+// NewAgent creates a new Agent instance.
+// If config is nil, it defaults to the Main Agent configuration.
+func NewAgent(ctx context.Context, config *AgentConfig) (*Agent, error) {
 	client, err := genai.NewClient(ctx, nil)
 	if err != nil {
 		return nil, errors.Join(fmt.Errorf("failed to create AI client"), err)
 	}
 
-	sysPrompt := prompt
-	if sysPrompt == nil {
-		defaultPrompt, err := loadAgentPrompt()
+	var sysPrompt string
+	var agentTools []tools.FunctionTool
+
+	if config != nil {
+		sysPrompt = config.SystemPrompt
+		agentTools = config.Tools
+	} else {
+		// Default Main Agent setup
+		p, err := loadAgentPrompt()
 		if err != nil {
-			return nil, errors.Join(fmt.Errorf("failed to load agent system prompt"), err)
+			return nil, err
 		}
-		sysPrompt = &defaultPrompt
+		sysPrompt = p
+		// Main agent gets ReadFile + Delegate
+		agentTools = []tools.FunctionTool{
+			&tools.ReadFile{},
+			// Delegate tool is added below to avoid initialization cycles if we were stricter
+		}
 	}
 
-	return &Agent{
+	agent := &Agent{
 		client:       client,
-		systemPrompt: *sysPrompt,
-		tools:        registerTools(),
+		systemPrompt: sysPrompt,
+		tools:        make(map[string]tools.FunctionTool),
 		history:      make([]*genai.Content, 0),
-	}, nil
+		registry:     make(map[string]*AgentConfig),
+	}
+
+	// Register tools
+	for _, t := range agentTools {
+		agent.tools[t.Decl().Name] = t
+	}
+
+	// If this is the main agent (config == nil), add the delegate tool
+	if config == nil {
+		availableAgents := []string{}
+		for name, cfg := range agentRegistry {
+			availableAgents = append(availableAgents, name)
+			// Copy config to instance registry
+			c := cfg
+			agent.registry[name] = &c
+		}
+
+		delegateTool := &tools.DelegateAgent{
+			AvailableAgents: availableAgents,
+			Delegator:       agent.delegateTask,
+		}
+		agent.tools[delegateTool.Decl().Name] = delegateTool
+	}
+
+	return agent, nil
 }
 
-func registerTools() map[string]tools.FunctionTool {
-	return map[string]tools.FunctionTool{
-		"read_file": new(tools.ReadFile),
+// delegateTask is the callback used by the DelegateAgent tool.
+func (a *Agent) delegateTask(ctx context.Context, agentName string, objective string) (string, error) {
+	cfg, ok := a.registry[agentName]
+	if !ok {
+		return "", fmt.Errorf("agent %q not found", agentName)
 	}
+
+	// Create the sub-agent
+	subAgent, err := NewAgent(ctx, cfg)
+	if err != nil {
+		return "", fmt.Errorf("failed to create sub-agent %q: %w", agentName, err)
+	}
+
+	slog.InfoContext(ctx, "Delegating task", "to_agent", agentName, "objective", objective)
+
+	// Send the objective to the sub-agent
+	// We use the configured model for the sub-agent
+	return subAgent.SendMessage(ctx, cfg.Model, objective)
 }
 
 // SendMessage sends a user prompt to the AI model, handles any tool calls, and returns the final text response.
@@ -86,6 +163,11 @@ func (a *Agent) SendMessage(ctx context.Context, model GeminiModel, prompt strin
 	// So we append to a.history as we go.
 
 	for {
+		// Use default model if not specified? Or passed in?
+		// The Agent struct doesn't hold the model, SendMessage does.
+		// For sub-agents, we might want to enforce the model from config.
+		// But SendMessage signature takes model.
+
 		response, err := a.client.Models.GenerateContent(
 			ctx,
 			string(model),
