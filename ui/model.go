@@ -1,3 +1,4 @@
+// Package ui defines the actual UI model.
 package ui
 
 import (
@@ -35,30 +36,29 @@ type (
 )
 
 func NewModel(agent *ai.Agent) tea.Model {
-
-ti := textinput.New()
-ti.Placeholder = "Type a message..."
-ti.Focus()
-ti.CharLimit = 156
-ti.Width = 20
+	ti := textinput.New()
+	ti.Placeholder = "Type a message..."
+	ti.Focus()
+	ti.CharLimit = 156
+	ti.Width = 20
 
 	welcomeMsg := "Welcome to Chatter! Type a message and press Enter."
-vp := viewport.New(30, 5)
-vp.SetContent(welcomeMsg)
+	vp := viewport.New(30, 5)
+	vp.SetContent(welcomeMsg)
 
-s := spinner.New()
-s.Spinner = spinner.Dot
-s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+	s := spinner.New()
+	s.Spinner = spinner.Dot
+	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 
-return model{
-	textInput: ti,
-	viewport:  vp,
-	messages:  []string{welcomeMsg},
-	agent:     agent,
-	spinner:   s,
-	isLoading: false,
-	err:       nil,
-}
+	return model{
+		textInput: ti,
+		viewport:  vp,
+		messages:  []string{welcomeMsg},
+		agent:     agent,
+		spinner:   s,
+		isLoading: false,
+		err:       nil,
+	}
 }
 
 func (m model) Init() tea.Cmd {
