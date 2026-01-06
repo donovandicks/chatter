@@ -7,10 +7,10 @@ import (
 )
 
 type Autocomplete struct {
-	allFiles 	[]string
-	suggestions 	[]string
+	allFiles      []string
+	suggestions   []string
 	suggestionIdx int
-	Active 		bool
+	Active        bool
 }
 
 func NewAutocomplete() *Autocomplete {
