@@ -7,8 +7,10 @@ import (
 	"google.golang.org/genai"
 )
 
+// ReadFile is a tool that allows the agent to read the contents of a file from the local filesystem.
 type ReadFile struct{}
 
+// Decl returns the function declaration for the read_file tool, describing its schema to the AI.
 func (t ReadFile) Decl() *genai.FunctionDeclaration {
 	return &genai.FunctionDeclaration{
 		Name:        "read_file",
@@ -26,6 +28,7 @@ func (t ReadFile) Decl() *genai.FunctionDeclaration {
 	}
 }
 
+// Run executes the read_file tool with the provided arguments.
 func (t ReadFile) Run(args map[string]any) (string, error) {
 	path, ok := args["path"].(string)
 	if !ok {

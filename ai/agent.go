@@ -16,13 +16,16 @@ import (
 //go:embed agent_system.md
 var agentSystemPrompt string
 
+// GoogleModel represents the specific Gemini model version to use.
 type GoogleModel string
 
+// Available Gemini models.
 const (
 	Gemini3Pro   GoogleModel = "gemini-3-pro-preview"
 	Gemini3Flash GoogleModel = "gemini-3-flash-preview"
 )
 
+// Agent manages the conversation history and interaction with the Gemini AI model.
 type Agent struct {
 	client       *genai.Client
 	systemPrompt string
@@ -37,6 +40,7 @@ func loadAgentPrompt() (string, error) {
 	return agentSystemPrompt, nil
 }
 
+// NewAgent creates a new Agent instance with a configured GenAI client and system prompt.
 func NewAgent(ctx context.Context) (*Agent, error) {
 	client, err := genai.NewClient(ctx, nil)
 	if err != nil {
@@ -62,6 +66,7 @@ func registerTools() map[string]tools.FunctionTool {
 	}
 }
 
+// SendMessage sends a user prompt to the AI model, handles any tool calls, and returns the final text response.
 func (a *Agent) SendMessage(ctx context.Context, model GoogleModel, prompt string) (string, error) {
 	var funcDecls []*genai.FunctionDeclaration
 	for _, t := range a.tools {
@@ -148,6 +153,7 @@ func (a *Agent) SendMessage(ctx context.Context, model GoogleModel, prompt strin
 	}
 }
 
+// ClearHistory resets the conversation history.
 func (a *Agent) ClearHistory() {
 	a.history = make([]*genai.Content, 0)
 }

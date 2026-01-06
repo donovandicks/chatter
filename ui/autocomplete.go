@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+// Autocomplete manages the state and logic for file path autocompletion in the chat input.
 type Autocomplete struct {
 	allFiles      []string
 	suggestions   []string
@@ -15,6 +16,7 @@ type Autocomplete struct {
 	Active        bool
 }
 
+// NewAutocomplete creates a new Autocomplete instance and initializes the file list.
 func NewAutocomplete() *Autocomplete {
 	files, _ := fsutil.ListFiles(".")
 	return &Autocomplete{
@@ -23,6 +25,7 @@ func NewAutocomplete() *Autocomplete {
 	}
 }
 
+// Update handles key events for navigation and selection, and filters suggestions based on input.
 func (a *Autocomplete) Update(msg tea.Msg, inputVal string, cursor int) (bool, string, int) {
 	if a.Active {
 		switch msg := msg.(type) {
@@ -86,6 +89,7 @@ func (a *Autocomplete) Update(msg tea.Msg, inputVal string, cursor int) (bool, s
 	return false, "", 0
 }
 
+// View renders the autocomplete suggestion list.
 func (a *Autocomplete) View() string {
 	if !a.Active {
 		return ""

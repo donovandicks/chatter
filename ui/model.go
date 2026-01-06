@@ -15,6 +15,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+// chatMessage represents a single message in the conversation history.
 type chatMessage struct {
 	Sender  string
 	Content string
@@ -38,6 +39,7 @@ type (
 	errMsg           error
 )
 
+// NewModel initializes the main application model with the given AI agent.
 func NewModel(agent *ai.Agent) tea.Model {
 	ti := textinput.New()
 

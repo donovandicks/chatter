@@ -6,12 +6,14 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+// SlashCommand represents a distinct command starting with "/" that performs an action.
 type SlashCommand struct {
 	Name        string
 	Description string
 	Execute     func(m *model) (tea.Model, tea.Cmd)
 }
 
+// SlashCommandHandler manages the registration, matching, and execution of slash commands.
 type SlashCommandHandler struct {
 	commands      []SlashCommand
 	suggestions   []SlashCommand
@@ -19,6 +21,7 @@ type SlashCommandHandler struct {
 	Active        bool
 }
 
+// NewSlashCommandHandler creates a new handler and registers default commands.
 func NewSlashCommandHandler() *SlashCommandHandler {
 	return &SlashCommandHandler{
 		commands: []SlashCommand{
@@ -41,6 +44,7 @@ func NewSlashCommandHandler() *SlashCommandHandler {
 	}
 }
 
+// Update checks for slash command input, manages suggestions, and handles selection keys.
 func (s *SlashCommandHandler) Update(msg tea.Msg, inputVal string) (bool, string, bool) {
 	// Only active if input starts with /
 	if !strings.HasPrefix(inputVal, "/") {
@@ -104,6 +108,7 @@ func (s *SlashCommandHandler) Update(msg tea.Msg, inputVal string) (bool, string
 	return false, "", false
 }
 
+// View renders the slash command suggestion list.
 func (s *SlashCommandHandler) View() string {
 	if !s.Active {
 		return ""
@@ -123,6 +128,7 @@ func (s *SlashCommandHandler) View() string {
 	return "\n" + suggestionContainerStyle.Render(content)
 }
 
+// ExecuteCommand finds and executes the command matching the given name.
 func (s *SlashCommandHandler) ExecuteCommand(name string, m *model) (bool, tea.Model, tea.Cmd) {
 	for _, cmd := range s.commands {
 		if cmd.Name == name {
