@@ -91,6 +91,7 @@ func (s *SlashCommandHandler) Update(msg tea.Msg, inputVal string) (bool, string
 				// by returning the command string to the input
 				if len(s.suggestions) > 0 {
 					selected := s.suggestions[s.suggestionIdx]
+					s.Active = false
 					return true, selected.Name, true
 				}
 			case tea.KeyEsc:
