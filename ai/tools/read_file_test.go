@@ -22,7 +22,7 @@ func TestReadFile_Decl(t *testing.T) {
 	if decl.Parameters == nil {
 		t.Fatal("Parameters is nil")
 	}
-	
+
 	if decl.Parameters.Type != genai.TypeObject {
 		t.Errorf("Expected parameter type Object, got %v", decl.Parameters.Type)
 	}

@@ -54,11 +54,11 @@ func NewModel(agent *ai.Agent) tea.Model {
 	}
 
 	vp := viewport.New(30, 5)
-	
-	// We'll set content in the first Update/View or initialization if possible, 
-	// but viewport needs width to render correctly. 
+
+	// We'll set content in the first Update/View or initialization if possible,
+	// but viewport needs width to render correctly.
 	// For now, simple text or wait for WindowSizeMsg.
-	vp.SetContent(welcomeMsg.Content) 
+	vp.SetContent(welcomeMsg.Content)
 
 	s := spinner.New()
 	s.Spinner = spinner.Dot
@@ -110,7 +110,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					selected := m.suggestions[m.suggestionIdx]
 					cursor := m.textInput.Position()
 					value := m.textInput.Value()
-					
+
 					// Find the start of the current @mention
 					start := strings.LastIndex(value[:cursor], "@")
 					if start != -1 {
@@ -138,7 +138,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cursor := m.textInput.Position()
 	value := m.textInput.Value()
 	lastAt := strings.LastIndex(value[:cursor], "@")
-	
+
 	if lastAt != -1 {
 		// potential mention, check if there are spaces between @ and cursor
 		query := value[lastAt+1 : cursor]
@@ -159,7 +159,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	} else {
 		m.showSuggestions = false
 	}
-
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -229,16 +228,16 @@ func (m model) View() string {
 	var suggestionsView string
 	if m.showSuggestions {
 		var views []string
-		
+
 		// Window size
 		windowSize := 5
-		
+
 		// Ensure the selected index is visible
 		start := 0
 		if m.suggestionIdx >= windowSize {
 			start = m.suggestionIdx - windowSize + 1
 		}
-		
+
 		end := start + windowSize
 		if end > len(m.suggestions) {
 			end = len(m.suggestions)
@@ -257,7 +256,7 @@ func (m model) View() string {
 				views = append(views, suggestionStyle.Render("  "+s))
 			}
 		}
-		
+
 		// Wrap suggestions in a container
 		content := strings.Join(views, "\n")
 		suggestionsView = "\n" + suggestionContainerStyle.Render(content)
