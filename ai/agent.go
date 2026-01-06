@@ -31,6 +31,7 @@ const (
 // Agent manages the conversation history and interaction with the Gemini AI model.
 type Agent struct {
 	client       *genai.Client
+	model        GeminiModel
 	systemPrompt string
 	tools        map[string]tools.FunctionTool
 	history      []*genai.Content
@@ -76,10 +77,12 @@ func NewAgent(ctx context.Context, config *AgentConfig) (*Agent, error) {
 
 	var sysPrompt string
 	var agentTools []tools.FunctionTool
+	var model GeminiModel
 
 	if config != nil {
 		sysPrompt = config.SystemPrompt
 		agentTools = config.Tools
+		model = config.Model
 	} else {
 		// Default Main Agent setup
 		p, err := loadAgentPrompt()
@@ -92,10 +95,12 @@ func NewAgent(ctx context.Context, config *AgentConfig) (*Agent, error) {
 			&tools.ReadFile{},
 			// Delegate tool is added below to avoid initialization cycles if we were stricter
 		}
+		model = Gemini3Flash
 	}
 
 	agent := &Agent{
 		client:       client,
+		model:        model,
 		systemPrompt: sysPrompt,
 		tools:        make(map[string]tools.FunctionTool),
 		history:      make([]*genai.Content, 0),
@@ -143,12 +148,11 @@ func (a *Agent) delegateTask(ctx context.Context, agentName string, objective st
 	slog.InfoContext(ctx, "Delegating task", "to_agent", agentName, "objective", objective)
 
 	// Send the objective to the sub-agent
-	// We use the configured model for the sub-agent
-	return subAgent.SendMessage(ctx, cfg.Model, objective)
+	return subAgent.SendMessage(ctx, objective)
 }
 
 // SendMessage sends a user prompt to the AI model, handles any tool calls, and returns the final text response.
-func (a *Agent) SendMessage(ctx context.Context, model GeminiModel, prompt string) (string, error) {
+func (a *Agent) SendMessage(ctx context.Context, prompt string) (string, error) {
 	var funcDecls []*genai.FunctionDeclaration
 	for _, t := range a.tools {
 		funcDecls = append(funcDecls, t.Decl())
@@ -163,14 +167,9 @@ func (a *Agent) SendMessage(ctx context.Context, model GeminiModel, prompt strin
 	// So we append to a.history as we go.
 
 	for {
-		// Use default model if not specified? Or passed in?
-		// The Agent struct doesn't hold the model, SendMessage does.
-		// For sub-agents, we might want to enforce the model from config.
-		// But SendMessage signature takes model.
-
 		response, err := a.client.Models.GenerateContent(
 			ctx,
-			string(model),
+			string(a.model),
 			a.history,
 			&genai.GenerateContentConfig{
 				SystemInstruction: genai.NewContentFromText(a.systemPrompt, genai.RoleModel),

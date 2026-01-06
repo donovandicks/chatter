@@ -244,7 +244,7 @@ func (m model) View() string {
 
 func sendToAgent(agent *ai.Agent, prompt string) tea.Cmd {
 	return func() tea.Msg {
-		resp, err := agent.SendMessage(context.Background(), ai.Gemini3Flash, prompt)
+		resp, err := agent.SendMessage(context.Background(), prompt)
 		if err != nil {
 			return errMsg(err)
 		}
