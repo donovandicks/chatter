@@ -83,7 +83,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.viewport.Width = msg.Width
 		m.textInput.Width = msg.Width
 		m.viewport.Height = msg.Height - 5
-		m.viewport.SetContent(strings.Join(m.messages, "\n"))
+		m.viewport.SetContent(m.renderMessages())
 
 	case tea.KeyMsg:
 		switch msg.Type {
@@ -94,7 +94,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				userText := m.textInput.Value()
 				userMsg := senderStyle.Render("You: ") + userText
 				m.messages = append(m.messages, userMsg)
-				m.viewport.SetContent(strings.Join(m.messages, "\n"))
+				m.viewport.SetContent(m.renderMessages())
 				m.textInput.SetValue("")
 				m.viewport.GotoBottom()
 
@@ -107,7 +107,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.isLoading = false
 		botMsg := botStyle.Render("Gemini: ") + string(msg)
 		m.messages = append(m.messages, botMsg)
-		m.viewport.SetContent(strings.Join(m.messages, "\n"))
+		m.viewport.SetContent(m.renderMessages())
 		m.viewport.GotoBottom()
 		return m, tea.Batch(tiCmd, vpCmd)
 
@@ -118,6 +118,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, tea.Batch(tiCmd, vpCmd, spCmd)
+}
+
+func (m model) renderMessages() string {
+	if m.viewport.Width == 0 {
+		return strings.Join(m.messages, "\n")
+	}
+
+	style := lipgloss.NewStyle().Width(m.viewport.Width)
+	var wrapped []string
+	for _, msg := range m.messages {
+		wrapped = append(wrapped, style.Render(msg))
+	}
+	return strings.Join(wrapped, "\n")
 }
 
 func (m model) View() string {
