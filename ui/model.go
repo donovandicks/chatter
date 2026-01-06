@@ -40,12 +40,12 @@ type (
 
 func NewModel(agent *ai.Agent) tea.Model {
 
-ti := textinput.New()
+	ti := textinput.New()
 
-ti.Placeholder = "Type a message..."
-ti.Focus()
-ti.CharLimit = 156
-ti.Width = 20
+	ti.Placeholder = "Type a message..."
+	ti.Focus()
+	ti.CharLimit = 156
+	ti.Width = 20
 
 	welcomeMsg := chatMessage{
 		Sender:  "System",
@@ -54,7 +54,7 @@ ti.Width = 20
 	}
 
 	vp := viewport.New(30, 5)
-vp.SetContent(welcomeMsg.Content)
+	vp.SetContent(welcomeMsg.Content)
 
 	s := spinner.New()
 	s.Spinner = spinner.Dot
@@ -86,12 +86,24 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Delegate to slash commands first if active or input starts with /
 	if strings.HasPrefix(m.textInput.Value(), "/") {
-		handled, newVal := m.slashCommands.Update(msg, m.textInput.Value())
+		handled, newVal, execute := m.slashCommands.Update(msg, m.textInput.Value())
 		if handled {
 			if newVal != "" {
 				m.textInput.SetValue(newVal)
 				// Move cursor to end
 				m.textInput.SetCursor(len(newVal))
+			}
+			if execute {
+				val := m.textInput.Value()
+				parts := strings.Fields(val)
+				if len(parts) > 0 {
+					cmdName := parts[0]
+					executed, newModel, cmd := m.slashCommands.ExecuteCommand(cmdName, &m)
+					if executed {
+						m.textInput.SetValue("")
+						return newModel, cmd
+					}
+				}
 			}
 			return m, nil
 		}

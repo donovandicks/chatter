@@ -31,9 +31,9 @@ func NewSlashCommandHandler() *SlashCommandHandler {
 						Content: "Conversation cleared.",
 						IsUser:  false,
 					}}
-				m.agent.ClearHistory()
-				m.viewport.SetContent(m.renderMessages())
-				return m, nil
+					m.agent.ClearHistory()
+					m.viewport.SetContent(m.renderMessages())
+					return m, nil
 				},
 			},
 		},
@@ -41,11 +41,11 @@ func NewSlashCommandHandler() *SlashCommandHandler {
 	}
 }
 
-func (s *SlashCommandHandler) Update(msg tea.Msg, inputVal string) (bool, string) {
+func (s *SlashCommandHandler) Update(msg tea.Msg, inputVal string) (bool, string, bool) {
 	// Only active if input starts with /
 	if !strings.HasPrefix(inputVal, "/") {
 		s.Active = false
-		return false, ""
+		return false, "", false
 	}
 
 	// Simple autocomplete logic
@@ -75,32 +75,32 @@ func (s *SlashCommandHandler) Update(msg tea.Msg, inputVal string) (bool, string
 				if s.suggestionIdx > 0 {
 					s.suggestionIdx--
 				}
-				return true, ""
+				return true, "", false
 			case tea.KeyDown:
 				if s.suggestionIdx < len(s.suggestions)-1 {
 					s.suggestionIdx++
 				}
-				return true, ""
+				return true, "", false
 			case tea.KeyTab:
 				if len(s.suggestions) > 0 {
 					selected := s.suggestions[s.suggestionIdx]
-					return true, selected.Name
+					return true, selected.Name, false
 				}
 			case tea.KeyEnter:
 				// If exact match or selected, we let the main loop handle the execution
 				// by returning the command string to the input
 				if len(s.suggestions) > 0 {
 					selected := s.suggestions[s.suggestionIdx]
-					return true, selected.Name
+					return true, selected.Name, true
 				}
 			case tea.KeyEsc:
 				s.Active = false
-				return true, ""
+				return true, "", false
 			}
 		}
 	}
 
-	return false, ""
+	return false, "", false
 }
 
 func (s *SlashCommandHandler) View() string {
