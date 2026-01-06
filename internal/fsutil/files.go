@@ -1,4 +1,4 @@
-package ui
+package fsutil
 
 import (
 	"io/fs"
@@ -6,9 +6,9 @@ import (
 	"strings"
 )
 
-// listFiles returns a list of relative file paths in the given root directory.
+// ListFiles returns a list of relative file paths in the given root directory.
 // It ignores .git directories.
-func listFiles(root string) ([]string, error) {
+func ListFiles(root string) ([]string, error) {
 	var files []string
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -42,8 +42,8 @@ func listFiles(root string) ([]string, error) {
 	return files, nil
 }
 
-// filterFiles returns a filtered list of files that match the query.
-func filterFiles(files []string, query string) []string {
+// FilterFiles returns a filtered list of files that match the query.
+func FilterFiles(files []string, query string) []string {
 	if query == "" {
 		return files
 	}

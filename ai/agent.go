@@ -6,11 +6,15 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"os"
+
+	_ "embed"
 
 	"github.com/donovandicks/chatter/ai/tools"
 	"google.golang.org/genai"
 )
+
+//go:embed agent_system.md
+var agentSystemPrompt string
 
 type GoogleModel string
 
@@ -27,12 +31,10 @@ type Agent struct {
 }
 
 func loadAgentPrompt() (string, error) {
-	data, err := os.ReadFile("prompts/agent_system.md")
-	if err != nil {
-		return "", err
+	if agentSystemPrompt == "" {
+		return "", errors.New("agent system prompt is empty")
 	}
-
-	return string(data), nil
+	return agentSystemPrompt, nil
 }
 
 func NewAgent(ctx context.Context) (*Agent, error) {

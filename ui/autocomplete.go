@@ -3,6 +3,8 @@ package ui
 import (
 	"strings"
 
+	"github.com/donovandicks/chatter/internal/fsutil"
+
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -14,7 +16,7 @@ type Autocomplete struct {
 }
 
 func NewAutocomplete() *Autocomplete {
-	files, _ := listFiles(".")
+	files, _ := fsutil.ListFiles(".")
 	return &Autocomplete{
 		allFiles: files,
 		Active:   false,
@@ -64,7 +66,7 @@ func (a *Autocomplete) Update(msg tea.Msg, inputVal string, cursor int) (bool, s
 		// potential mention, check if there are spaces between @ and cursor
 		query := inputVal[lastAt+1 : cursor]
 		if !strings.Contains(query, " ") {
-			a.suggestions = filterFiles(a.allFiles, query)
+			a.suggestions = fsutil.FilterFiles(a.allFiles, query)
 			if len(a.suggestions) > 0 {
 				a.Active = true
 				// Keep index in bounds if list shrinks

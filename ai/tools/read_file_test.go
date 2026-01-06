@@ -34,7 +34,7 @@ func TestReadFile_Run(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(tmpfile.Name()) // clean up
+	defer func() { _ = os.Remove(tmpfile.Name()) }() // clean up
 
 	content := "Hello, World!"
 	if _, err := tmpfile.Write([]byte(content)); err != nil {

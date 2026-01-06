@@ -22,10 +22,10 @@ var (
 			Padding(0, 1).
 			MarginBottom(1)
 
-	senderBoxStyle = messageBoxStyle.Copy().
+	senderBoxStyle = messageBoxStyle.
 			BorderForeground(lipgloss.Color("63")) // Purple-ish
 
-	botBoxStyle = messageBoxStyle.Copy().
+	botBoxStyle = messageBoxStyle.
 			BorderForeground(lipgloss.Color("39")) // Blue-ish
 
 	// Autocomplete styles
