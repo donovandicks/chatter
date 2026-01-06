@@ -31,7 +31,7 @@ func loadAgentPrompt() (string, error) {
 }
 
 func NewAgent(ctx context.Context) (*Agent, error) {
-	client, err := genai.NewClient(ctx, &genai.ClientConfig{})
+	client, err := genai.NewClient(ctx, nil)
 	if err != nil {
 		slog.ErrorContext(ctx, "failed to create AI client", "error", err)
 		return nil, err
@@ -54,7 +54,7 @@ func (a *Agent) SendMessage(ctx context.Context, model GoogleModel, prompt strin
 		ctx,
 		string(model),
 		[]*genai.Content{
-			{},
+			genai.NewContentFromText(prompt, genai.RoleUser),
 		},
 		&genai.GenerateContentConfig{
 			SystemInstruction: genai.NewContentFromText(a.systemPrompt, genai.RoleModel),
