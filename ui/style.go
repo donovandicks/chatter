@@ -56,10 +56,7 @@ func renderMessage(sender, content string, isUser bool, width int) string {
 
 	// Calculate inner width for the content
 	// Border (2) + Padding (2) = 4
-	innerWidth := width - 4
-	if innerWidth < 10 {
-		innerWidth = 10 // Minimum width safety
-	}
+	innerWidth := max(width-4, 10)
 
 	// Create the header (sender name)
 	header := nameStyle.Render(sender)
