@@ -3,6 +3,8 @@ package ai
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 
@@ -33,14 +35,12 @@ func loadAgentPrompt() (string, error) {
 func NewAgent(ctx context.Context) (*Agent, error) {
 	client, err := genai.NewClient(ctx, nil)
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to create AI client", "error", err)
-		return nil, err
+		return nil, errors.Join(fmt.Errorf("failed to create AI client"), err)
 	}
 
 	sysPrompt, err := loadAgentPrompt()
 	if err != nil {
-		slog.ErrorContext(ctx, "failed to load agent system prompt", "error", err)
-		return nil, err
+		return nil, errors.Join(fmt.Errorf("failed to load agent system prompt"), err)
 	}
 
 	return &Agent{
