@@ -111,37 +111,42 @@ func (a *Agent) SendMessage(ctx context.Context, model GoogleModel, prompt strin
 
 		// If no function calls, we are done. Return text.
 		if len(functionCalls) == 0 {
-			return response.Text(), nil
-		}
-
-		// Handle function calls
-		for _, fc := range functionCalls {
-			tool, ok := a.tools[fc.Name]
-			var resp map[string]any
-			if !ok {
-				resp = map[string]any{"error": fmt.Sprintf("tool %q not found", fc.Name)}
-			} else {
-				res, err := tool.Run(fc.Args)
-				if err != nil {
-					resp = map[string]any{"error": err.Error()}
-				} else {
-					resp = map[string]any{"result": res}
+				return response.Text(), nil
+					}
+			
+					// Handle function calls
+					for _, fc := range functionCalls {
+						tool, ok := a.tools[fc.Name]
+						var resp map[string]any
+						if !ok {
+							resp = map[string]any{"error": fmt.Sprintf("tool %q not found", fc.Name)}
+						} else {
+							res, err := tool.Run(fc.Args)
+							if err != nil {
+								resp = map[string]any{"error": err.Error()}
+							} else {
+								resp = map[string]any{"result": res}
+							}
+						}
+			
+						// Add tool response to history
+						toolResponseContent := &genai.Content{
+							Role: "tool",
+							Parts: []*genai.Part{
+								{
+									FunctionResponse: &genai.FunctionResponse{
+										Name:     fc.Name,
+										Response: resp,
+									},
+								},
+							},
+						}
+						a.history = append(a.history, toolResponseContent)
+					}
 				}
 			}
-
-			// Add tool response to history
-			toolResponseContent := &genai.Content{
-				Role: "tool",
-				Parts: []*genai.Part{
-					{
-						FunctionResponse: &genai.FunctionResponse{
-							Name:     fc.Name,
-							Response: resp,
-						},
-					},
-				},
+			
+			func (a *Agent) ClearHistory() {
+				a.history = make([]*genai.Content, 0)
 			}
-			a.history = append(a.history, toolResponseContent)
-		}
-	}
-}
+			

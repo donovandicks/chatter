@@ -22,14 +22,15 @@ type chatMessage struct {
 }
 
 type model struct {
-	viewport     viewport.Model
-	textInput    textinput.Model
-	messages     []chatMessage
-	agent        *ai.Agent
-	spinner      spinner.Model
-	isLoading    bool
-	err          error
-	autocomplete *Autocomplete
+	viewport      viewport.Model
+	textInput     textinput.Model
+	messages      []chatMessage
+	agent         *ai.Agent
+	spinner       spinner.Model
+	isLoading     bool
+	err           error
+	autocomplete  *Autocomplete
+	slashCommands *SlashCommandHandler
 }
 
 type (
@@ -60,14 +61,15 @@ vp.SetContent(welcomeMsg.Content)
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 
 	return model{
-		textInput:    ti,
-		viewport:     vp,
-		messages:     []chatMessage{welcomeMsg},
-		agent:        agent,
-		spinner:      s,
-		isLoading:    false,
-		err:          nil,
-		autocomplete: NewAutocomplete(),
+		textInput:     ti,
+		viewport:      vp,
+		messages:      []chatMessage{welcomeMsg},
+		agent:         agent,
+		spinner:       s,
+		isLoading:     false,
+		err:           nil,
+		autocomplete:  NewAutocomplete(),
+		slashCommands: NewSlashCommandHandler(),
 	}
 }
 
@@ -82,14 +84,27 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		spCmd tea.Cmd
 	)
 
-	// Delegate to autocomplete first
-	handled, newVal, newCursor := m.autocomplete.Update(msg, m.textInput.Value(), m.textInput.Position())
-	if handled {
-		if newVal != "" {
-			m.textInput.SetValue(newVal)
-			m.textInput.SetCursor(newCursor)
+	// Delegate to slash commands first if active or input starts with /
+	if strings.HasPrefix(m.textInput.Value(), "/") {
+		handled, newVal := m.slashCommands.Update(msg, m.textInput.Value())
+		if handled {
+			if newVal != "" {
+				m.textInput.SetValue(newVal)
+				// Move cursor to end
+				m.textInput.SetCursor(len(newVal))
+			}
+			return m, nil
 		}
-		return m, nil
+	} else {
+		// Only check autocomplete if not doing slash command
+		handled, newVal, newCursor := m.autocomplete.Update(msg, m.textInput.Value(), m.textInput.Position())
+		if handled {
+			if newVal != "" {
+				m.textInput.SetValue(newVal)
+				m.textInput.SetCursor(newCursor)
+			}
+			return m, nil
+		}
 	}
 
 	m.textInput, tiCmd = m.textInput.Update(msg)
@@ -108,6 +123,21 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case tea.KeyEnter:
 			if m.textInput.Value() != "" && !m.isLoading && !m.autocomplete.Active {
+				// Check if it's a command execution
+				val := m.textInput.Value()
+				if strings.HasPrefix(val, "/") {
+					// Clean up the command to handle potential spaces or just take the first word
+					// For now, assume exact match or simple command
+					parts := strings.Fields(val)
+					if len(parts) > 0 {
+						cmdName := parts[0]
+						executed, newModel, cmd := m.slashCommands.ExecuteCommand(cmdName, &m)
+						if executed {
+							m.textInput.SetValue("")
+							return newModel, cmd
+						}
+					}
+				}
 				return m.handleSendMessage()
 			}
 		}
@@ -177,6 +207,10 @@ func (m model) View() string {
 	}
 
 	suggestionsView := m.autocomplete.View()
+	// Overwrite suggestions if slash command is active
+	if m.slashCommands.Active {
+		suggestionsView = m.slashCommands.View()
+	}
 
 	if m.isLoading {
 		return fmt.Sprintf(
