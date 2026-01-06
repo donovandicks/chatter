@@ -22,7 +22,7 @@ type Agent struct {
 }
 
 func loadAgentPrompt() (string, error) {
-	data, err := os.ReadFile("../prompts/agent_system.md")
+	data, err := os.ReadFile("prompts/agent_system.md")
 	if err != nil {
 		return "", err
 	}
