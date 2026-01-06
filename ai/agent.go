@@ -16,13 +16,13 @@ import (
 //go:embed agent_system.md
 var agentSystemPrompt string
 
-// GoogleModel represents the specific Gemini model version to use.
-type GoogleModel string
+// GeminiModel represents the specific Gemini model version to use.
+type GeminiModel string
 
 // Available Gemini models.
 const (
-	Gemini3Pro   GoogleModel = "gemini-3-pro-preview"
-	Gemini3Flash GoogleModel = "gemini-3-flash-preview"
+	Gemini3Pro   GeminiModel = "gemini-3-pro-preview"
+	Gemini3Flash GeminiModel = "gemini-3-flash-preview"
 )
 
 // Agent manages the conversation history and interaction with the Gemini AI model.
@@ -67,7 +67,7 @@ func registerTools() map[string]tools.FunctionTool {
 }
 
 // SendMessage sends a user prompt to the AI model, handles any tool calls, and returns the final text response.
-func (a *Agent) SendMessage(ctx context.Context, model GoogleModel, prompt string) (string, error) {
+func (a *Agent) SendMessage(ctx context.Context, model GeminiModel, prompt string) (string, error) {
 	var funcDecls []*genai.FunctionDeclaration
 	for _, t := range a.tools {
 		funcDecls = append(funcDecls, t.Decl())
