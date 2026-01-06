@@ -14,7 +14,7 @@ func TestListFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create some files and dirs
 	files := []string{
@@ -27,10 +27,10 @@ func TestListFiles(t *testing.T) {
 
 	for _, f := range files {
 		path := filepath.Join(tmpDir, f)
-		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 			t.Fatal(err)
 		}
-		if err := os.WriteFile(path, []byte(""), 0644); err != nil {
+		if err := os.WriteFile(path, []byte(""), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
