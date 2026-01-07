@@ -42,6 +42,9 @@ func (a *Autocomplete) Update(msg tea.Msg, inputVal string, cursor int) (bool, s
 				}
 				return true, "", 0
 			case tea.KeyEnter, tea.KeyTab:
+				if msg.Alt {
+					return false, "", 0
+				}
 				if len(a.suggestions) > 0 {
 					selected := a.suggestions[a.suggestionIdx]
 					// Find the start of the current @mention

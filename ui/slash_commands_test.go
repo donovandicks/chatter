@@ -46,4 +46,12 @@ func TestSlashCommandHandler_Update(t *testing.T) {
 	if sh.Active {
 		t.Error("Should be inactive after selection")
 	}
+
+	// 4. Alt+Enter should be ignored
+	sh.Active = true
+	sh.suggestions = sh.commands
+	handled, _, _ = sh.Update(tea.KeyMsg{Type: tea.KeyEnter, Alt: true}, "/c")
+	if handled {
+		t.Error("Alt+Enter should NOT be handled by slash commands")
+	}
 }

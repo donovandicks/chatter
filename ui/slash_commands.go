@@ -91,6 +91,9 @@ func (s *SlashCommandHandler) Update(msg tea.Msg, inputVal string) (bool, string
 					return true, selected.Name, false
 				}
 			case tea.KeyEnter:
+				if msg.Alt {
+					return false, "", false
+				}
 				// If exact match or selected, we let the main loop handle the execution
 				// by returning the command string to the input
 				if len(s.suggestions) > 0 {

@@ -143,6 +143,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 		case tea.KeyEnter:
+			if msg.Alt {
+				m.textarea, taCmd = m.textarea.Update(tea.KeyMsg{Type: tea.KeyEnter})
+				return m, tea.Batch(taCmd, vpCmd, spCmd)
+			}
 			if m.textarea.Value() != "" && !m.isLoading && !m.autocomplete.Active {
 				if strings.HasPrefix(m.textarea.Value(), "/") {
 					return m.tryExecuteCommand()

@@ -50,4 +50,12 @@ func TestAutocomplete_Update(t *testing.T) {
 	if ac.Active {
 		t.Error("Should not be active after selection")
 	}
+
+	// 4. Alt+Enter should be ignored
+	ac.Active = true
+	ac.suggestions = []string{"main.go"}
+	handled, _, _ = ac.Update(tea.KeyMsg{Type: tea.KeyEnter, Alt: true}, "Hello @main", 11)
+	if handled {
+		t.Error("Alt+Enter should NOT be handled by autocomplete")
+	}
 }
