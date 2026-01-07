@@ -10,6 +10,7 @@ import (
 	_ "embed"
 
 	"github.com/donovandicks/chatter/ai/tools"
+	"github.com/donovandicks/chatter/internal/auth"
 	"google.golang.org/genai"
 )
 
@@ -18,6 +19,11 @@ var agentSystemPrompt string
 
 //go:embed planner.md
 var plannerSystemPrompt string
+
+// PermissionRequester defines the interface for requesting user approval for actions.
+type PermissionRequester interface {
+	RequestApproval(ctx context.Context, action auth.Action) (auth.PermissionLevel, error)
+}
 
 // GeminiModel represents the specific Gemini model version to use.
 type GeminiModel string
@@ -36,7 +42,9 @@ type Agent struct {
 	tools        map[string]tools.FunctionTool
 	history      []*genai.Content
 	// registry keeps track of available sub-agents for delegation
-	registry map[string]*AgentConfig
+	registry      map[string]*AgentConfig
+	permManager   *auth.PermissionManager
+	permRequester PermissionRequester
 }
 
 // AgentConfig defines the configuration for an AI agent.
@@ -68,7 +76,7 @@ func loadAgentPrompt() (string, error) {
 }
 
 // NewAgent creates a new Agent instance with the provided configuration.
-func NewAgent(ctx context.Context, config *AgentConfig) (*Agent, error) {
+func NewAgent(ctx context.Context, config *AgentConfig, pm *auth.PermissionManager, pr PermissionRequester) (*Agent, error) {
 	if config == nil {
 		return nil, errors.New("config is required")
 	}
@@ -79,12 +87,14 @@ func NewAgent(ctx context.Context, config *AgentConfig) (*Agent, error) {
 	}
 
 	agent := &Agent{
-		client:       client,
-		model:        config.Model,
-		systemPrompt: config.SystemPrompt,
-		tools:        make(map[string]tools.FunctionTool),
-		history:      make([]*genai.Content, 0),
-		registry:     make(map[string]*AgentConfig),
+		client:        client,
+		model:         config.Model,
+		systemPrompt:  config.SystemPrompt,
+		tools:         make(map[string]tools.FunctionTool),
+		history:       make([]*genai.Content, 0),
+		registry:      make(map[string]*AgentConfig),
+		permManager:   pm,
+		permRequester: pr,
 	}
 
 	// Register tools
@@ -96,7 +106,7 @@ func NewAgent(ctx context.Context, config *AgentConfig) (*Agent, error) {
 }
 
 // NewMainAgent creates the primary agent with the default configuration and delegation capabilities.
-func NewMainAgent(ctx context.Context) (*Agent, error) {
+func NewMainAgent(ctx context.Context, pm *auth.PermissionManager, pr PermissionRequester) (*Agent, error) {
 	sysPrompt, err := loadAgentPrompt()
 	if err != nil {
 		return nil, err
@@ -114,7 +124,7 @@ func NewMainAgent(ctx context.Context) (*Agent, error) {
 		Tools:        mainTools,
 	}
 
-	agent, err := NewAgent(ctx, config)
+	agent, err := NewAgent(ctx, config, pm, pr)
 	if err != nil {
 		return nil, err
 	}
@@ -145,7 +155,7 @@ func (a *Agent) delegateTask(ctx context.Context, agentName string, objective st
 	}
 
 	// Create the sub-agent
-	subAgent, err := NewAgent(ctx, cfg)
+	subAgent, err := NewAgent(ctx, cfg, a.permManager, a.permRequester)
 	if err != nil {
 		return "", fmt.Errorf("failed to create sub-agent %q: %w", agentName, err)
 	}
@@ -154,6 +164,54 @@ func (a *Agent) delegateTask(ctx context.Context, agentName string, objective st
 
 	// Send the objective to the sub-agent
 	return subAgent.SendMessage(ctx, objective)
+}
+
+func (a *Agent) checkPermission(ctx context.Context, toolName string, args map[string]any) error {
+	// Skip permission check if components are missing (e.g. tests)
+	if a.permManager == nil || a.permRequester == nil {
+		return nil
+	}
+
+	// Map tool call to Action
+	action := auth.Action{
+		Type:      "tool",
+		Operation: toolName,
+		Target:    fmt.Sprintf("%v", args), // Simple representation for now
+	}
+
+	// Refine action based on tool specifics
+	switch toolName {
+	case "read_file":
+		action.Type = "file"
+		action.Operation = "read"
+		if path, ok := args["file_path"].(string); ok {
+			action.Target = path
+		}
+	// Add other tools here as they are added (write_file, run_shell_command, etc.)
+	}
+
+	// Check existing permissions
+	if a.permManager.Check(action) {
+		return nil
+	}
+
+	// Request approval
+	level, err := a.permRequester.RequestApproval(ctx, action)
+	if err != nil {
+		return err
+	}
+
+	switch level {
+	case auth.LevelReject:
+		return fmt.Errorf("permission denied by user")
+	case auth.LevelApproveOnce:
+		return nil
+	case auth.LevelApproveSession:
+		a.permManager.GrantSession(action)
+		return nil
+	default:
+		return fmt.Errorf("unknown permission level")
+	}
 }
 
 // SendMessage sends a user prompt to the AI model, handles any tool calls, and returns the final text response.
@@ -221,11 +279,16 @@ func (a *Agent) SendMessage(ctx context.Context, prompt string) (string, error) 
 			if !ok {
 				resp = map[string]any{"error": fmt.Sprintf("tool %q not found", fc.Name)}
 			} else {
-				res, err := tool.Run(fc.Args)
-				if err != nil {
-					resp = map[string]any{"error": err.Error()}
+				// Check permission
+				if err := a.checkPermission(ctx, fc.Name, fc.Args); err != nil {
+					resp = map[string]any{"error": fmt.Sprintf("permission denied: %v", err)}
 				} else {
-					resp = map[string]any{"result": res}
+					res, err := tool.Run(fc.Args)
+					if err != nil {
+						resp = map[string]any{"error": err.Error()}
+					} else {
+						resp = map[string]any{"result": res}
+					}
 				}
 			}
 
@@ -249,4 +312,9 @@ func (a *Agent) SendMessage(ctx context.Context, prompt string) (string, error) 
 // ClearHistory resets the conversation history.
 func (a *Agent) ClearHistory() {
 	a.history = make([]*genai.Content, 0)
+}
+
+// GetPermissionManager returns the agent's permission manager.
+func (a *Agent) GetPermissionManager() *auth.PermissionManager {
+	return a.permManager
 }

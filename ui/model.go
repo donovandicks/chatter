@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/donovandicks/chatter/ai"
+	"github.com/donovandicks/chatter/internal/auth"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textarea"
@@ -24,18 +25,20 @@ type chatMessage struct {
 }
 
 type model struct {
-	viewport      viewport.Model
-	textarea      textarea.Model
-	messages      []chatMessage
-	agent         *ai.Agent
-	spinner       spinner.Model
-	isLoading     bool
-	err           error
-	autocomplete  *Autocomplete
-	slashCommands *SlashCommandHandler
-	cancelRequest context.CancelFunc
-	width         int
-	height        int
+	viewport          viewport.Model
+	textarea          textarea.Model
+	messages          []chatMessage
+	agent             *ai.Agent
+	spinner           spinner.Model
+	isLoading         bool
+	err               error
+	autocomplete      *Autocomplete
+	slashCommands     *SlashCommandHandler
+	cancelRequest     context.CancelFunc
+	width             int
+	height            int
+	permRequester     *UIPermissionRequester
+	activePermRequest *PermissionRequestMsg
 }
 
 type (
@@ -44,7 +47,7 @@ type (
 )
 
 // NewModel initializes the main application model with the given AI agent.
-func NewModel(agent *ai.Agent) tea.Model {
+func NewModel(agent *ai.Agent, permRequester *UIPermissionRequester) tea.Model {
 	ta := textarea.New()
 	ta.Placeholder = "Type a message..."
 	ta.Focus()
@@ -77,11 +80,21 @@ func NewModel(agent *ai.Agent) tea.Model {
 		autocomplete:  NewAutocomplete(),
 		slashCommands: NewSlashCommandHandler(),
 		cancelRequest: nil,
+		permRequester: permRequester,
 	}
 }
 
 func (m model) Init() tea.Cmd {
-	return textarea.Blink
+	return tea.Batch(
+		textarea.Blink,
+		m.waitForPermissionRequests(m.permRequester.RequestChan),
+	)
+}
+
+func (m model) waitForPermissionRequests(ch <-chan PermissionRequestMsg) tea.Cmd {
+	return func() tea.Msg {
+		return <-ch
+	}
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -90,6 +103,34 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		vpCmd tea.Cmd
 		spCmd tea.Cmd
 	)
+
+	// If a permission request is active, intercept all key inputs
+	if m.activePermRequest != nil {
+		if msg, ok := msg.(tea.KeyMsg); ok {
+			var response auth.PermissionLevel
+			responded := false
+
+			switch msg.String() {
+			case "y", "Y":
+				response = auth.LevelApproveOnce
+				responded = true
+			case "s", "S":
+				response = auth.LevelApproveSession
+				responded = true
+			case "n", "N", "esc":
+				response = auth.LevelReject
+				responded = true
+			}
+
+			if responded {
+				m.activePermRequest.ResponseChan <- response
+				m.activePermRequest = nil
+				// Resume listening for requests
+				return m, m.waitForPermissionRequests(m.permRequester.RequestChan)
+			}
+			return m, nil
+		}
+	}
 
 	// Check for slash command interactions (autocomplete/filtering)
 	if strings.HasPrefix(m.textarea.Value(), "/") {
@@ -179,6 +220,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.viewport.GotoBottom()
 		m = m.recalculateViewportHeight()
 		return m, nil
+	case PermissionRequestMsg:
+		m.activePermRequest = &msg
+		return m, nil
 	}
 
 	m.textarea, taCmd = m.textarea.Update(msg)
@@ -193,7 +237,8 @@ func (m model) tryExecuteCommand() (tea.Model, tea.Cmd) {
 	parts := strings.Fields(val)
 	if len(parts) > 0 {
 		cmdName := parts[0]
-		executed, newModel, cmd := m.slashCommands.ExecuteCommand(cmdName, &m)
+		args := parts[1:]
+		executed, newModel, cmd := m.slashCommands.ExecuteCommand(cmdName, args, &m)
 		if executed {
 			if nm, ok := newModel.(*model); ok {
 				nm.textarea.Reset()
@@ -229,6 +274,10 @@ func (m model) recalculateViewportHeight() model {
 }
 
 func (m model) footerView() string {
+	if m.activePermRequest != nil {
+		return "" // Hide footer when modal is active
+	}
+
 	if m.isLoading {
 		return fmt.Sprintf("\n%s %s", m.spinner.View(), "Thinking... (Esc to cancel)")
 	}
@@ -292,12 +341,36 @@ func (m model) View() string {
 		return fmt.Sprintf("Error: %v\nPress Ctrl+C to quit.", m.err)
 	}
 
+	if m.activePermRequest != nil {
+		return m.renderPermissionModal()
+	}
+
 	ui := lipgloss.JoinVertical(lipgloss.Left,
 		m.viewport.View(),
 		m.footerView(),
 	)
 
 	return lipgloss.PlaceVertical(m.height, lipgloss.Bottom, ui)
+}
+
+func (m model) renderPermissionModal() string {
+	dialog := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("205")).
+		Padding(1, 2).
+		Width(60).
+		Align(lipgloss.Center)
+
+	title := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("205")).Render("PERMISSION REQUEST")
+	
+	action := m.activePermRequest.Action
+	details := fmt.Sprintf("\nType: %s\nOp:   %s\nTarget: %s\n", action.Type, action.Operation, action.Target)
+
+	help := lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render("\n(y) Once  (s) Session  (n/esc) Reject")
+
+	content := lipgloss.JoinVertical(lipgloss.Center, title, details, help)
+	
+	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, dialog.Render(content))
 }
 
 func sendToAgent(ctx context.Context, agent *ai.Agent, prompt string) tea.Cmd {

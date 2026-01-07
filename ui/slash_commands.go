@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -10,7 +11,7 @@ import (
 type SlashCommand struct {
 	Name        string
 	Description string
-	Execute     func(m *model) (tea.Model, tea.Cmd)
+	Execute     func(m *model, args []string) (tea.Model, tea.Cmd)
 }
 
 // SlashCommandHandler manages the registration, matching, and execution of slash commands.
@@ -28,7 +29,7 @@ func NewSlashCommandHandler() *SlashCommandHandler {
 			{
 				Name:        "/clear",
 				Description: "Reset the conversation",
-				Execute: func(m *model) (tea.Model, tea.Cmd) {
+				Execute: func(m *model, args []string) (tea.Model, tea.Cmd) {
 					m.messages = []chatMessage{{
 						Sender:  "System",
 						Content: "Conversation cleared.",
@@ -39,9 +40,52 @@ func NewSlashCommandHandler() *SlashCommandHandler {
 					return m, nil
 				},
 			},
+			{
+				Name:        "/perms",
+				Description: "Manage permissions (list, clear)",
+				Execute: func(m *model, args []string) (tea.Model, tea.Cmd) {
+					if len(args) == 0 {
+						return addSystemMessage(m, "Usage: /perms <list|clear>"), nil
+					}
+
+					pm := m.agent.GetPermissionManager()
+					if pm == nil {
+						return addSystemMessage(m, "Error: Permission manager not available."), nil
+					}
+
+					switch args[0] {
+					case "list":
+						perms := pm.List()
+						if len(perms) == 0 {
+							return addSystemMessage(m, "No active session permissions."), nil
+						}
+						var sb strings.Builder
+						sb.WriteString("Active Session Permissions:\n")
+						for _, p := range perms {
+							sb.WriteString(fmt.Sprintf("- [%s] %s: %s\n", p.Type, p.Operation, p.Target))
+						}
+						return addSystemMessage(m, sb.String()), nil
+					case "clear":
+						pm.ClearAll()
+						return addSystemMessage(m, "All session permissions cleared."), nil
+					default:
+						return addSystemMessage(m, "Unknown subcommand. Usage: /perms <list|clear>"), nil
+					}
+				},
+			},
 		},
 		Active: false,
 	}
+}
+
+func addSystemMessage(m *model, content string) *model {
+	m.messages = append(m.messages, chatMessage{
+		Sender:  "System",
+		Content: content,
+		IsUser:  false,
+	})
+	m.viewport.SetContent(m.renderMessages())
+	return m
 }
 
 // Update checks for slash command input, manages suggestions, and handles selection keys.
@@ -53,7 +97,7 @@ func (s *SlashCommandHandler) Update(msg tea.Msg, inputVal string) (bool, string
 	}
 
 	// Simple autocomplete logic
-	query := inputVal
+	query := strings.Fields(inputVal)[0]
 	s.suggestions = []SlashCommand{}
 	for _, cmd := range s.commands {
 		if strings.HasPrefix(cmd.Name, query) {
@@ -132,10 +176,10 @@ func (s *SlashCommandHandler) View() string {
 }
 
 // ExecuteCommand finds and executes the command matching the given name.
-func (s *SlashCommandHandler) ExecuteCommand(name string, m *model) (bool, tea.Model, tea.Cmd) {
+func (s *SlashCommandHandler) ExecuteCommand(name string, args []string, m *model) (bool, tea.Model, tea.Cmd) {
 	for _, cmd := range s.commands {
 		if cmd.Name == name {
-			mod, c := cmd.Execute(m)
+			mod, c := cmd.Execute(m, args)
 			return true, mod, c
 		}
 	}
