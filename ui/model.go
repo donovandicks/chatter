@@ -362,14 +362,14 @@ func (m model) renderPermissionModal() string {
 		Align(lipgloss.Center)
 
 	title := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("205")).Render("PERMISSION REQUEST")
-	
+
 	action := m.activePermRequest.Action
 	details := fmt.Sprintf("\nType: %s\nOp:   %s\nTarget: %s\n", action.Type, action.Operation, action.Target)
 
 	help := lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render("\n(y) Once  (s) Session  (n/esc) Reject")
 
 	content := lipgloss.JoinVertical(lipgloss.Center, title, details, help)
-	
+
 	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, dialog.Render(content))
 }
 

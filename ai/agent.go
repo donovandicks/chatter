@@ -115,6 +115,7 @@ func NewMainAgent(ctx context.Context, pm *auth.PermissionManager, pr Permission
 	// Define available tools for the main agent (excluding delegate for now)
 	mainTools := []tools.FunctionTool{
 		&tools.ReadFile{},
+		&tools.WriteFile{},
 	}
 
 	config := &AgentConfig{
@@ -184,10 +185,15 @@ func (a *Agent) checkPermission(ctx context.Context, toolName string, args map[s
 	case "read_file":
 		action.Type = "file"
 		action.Operation = "read"
-		if path, ok := args["file_path"].(string); ok {
+		if path, ok := args["path"].(string); ok {
 			action.Target = path
 		}
-	// Add other tools here as they are added (write_file, run_shell_command, etc.)
+	case "write_file":
+		action.Type = "file"
+		action.Operation = "write"
+		if path, ok := args["path"].(string); ok {
+			action.Target = path
+		}
 	}
 
 	// Check existing permissions
