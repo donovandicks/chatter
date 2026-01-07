@@ -67,67 +67,72 @@ func loadAgentPrompt() (string, error) {
 	return agentSystemPrompt, nil
 }
 
-// NewAgent creates a new Agent instance.
-// If config is nil, it defaults to the Main Agent configuration.
+// NewAgent creates a new Agent instance with the provided configuration.
 func NewAgent(ctx context.Context, config *AgentConfig) (*Agent, error) {
+	if config == nil {
+		return nil, errors.New("config is required")
+	}
+
 	client, err := genai.NewClient(ctx, nil)
 	if err != nil {
 		return nil, errors.Join(fmt.Errorf("failed to create AI client"), err)
 	}
 
-	var sysPrompt string
-	var agentTools []tools.FunctionTool
-	var model GeminiModel
-
-	if config != nil {
-		sysPrompt = config.SystemPrompt
-		agentTools = config.Tools
-		model = config.Model
-	} else {
-		// Default Main Agent setup
-		p, err := loadAgentPrompt()
-		if err != nil {
-			return nil, err
-		}
-		sysPrompt = p
-		// Main agent gets ReadFile + Delegate
-		agentTools = []tools.FunctionTool{
-			&tools.ReadFile{},
-			// Delegate tool is added below to avoid initialization cycles if we were stricter
-		}
-		model = Gemini3Flash
-	}
-
 	agent := &Agent{
 		client:       client,
-		model:        model,
-		systemPrompt: sysPrompt,
+		model:        config.Model,
+		systemPrompt: config.SystemPrompt,
 		tools:        make(map[string]tools.FunctionTool),
 		history:      make([]*genai.Content, 0),
 		registry:     make(map[string]*AgentConfig),
 	}
 
 	// Register tools
-	for _, t := range agentTools {
+	for _, t := range config.Tools {
 		agent.tools[t.Decl().Name] = t
 	}
 
-	// If this is the main agent (config == nil), add the delegate tool
-	if config == nil {
-		availableAgents := []string{}
-		for name, cfg := range agentRegistry {
-			availableAgents = append(availableAgents, name)
-			// Copy config to instance registry
-			c := cfg
-			agent.registry[name] = &c
-		}
+	return agent, nil
+}
 
-		delegateTool := &tools.DelegateAgent{
-			AvailableAgents: availableAgents,
-			Delegator:       agent.delegateTask,
-		}
-		agent.tools[delegateTool.Decl().Name] = delegateTool
+// NewMainAgent creates the primary agent with the default configuration and delegation capabilities.
+func NewMainAgent(ctx context.Context) (*Agent, error) {
+	sysPrompt, err := loadAgentPrompt()
+	if err != nil {
+		return nil, err
 	}
+
+	// Define available tools for the main agent (excluding delegate for now)
+	mainTools := []tools.FunctionTool{
+		&tools.ReadFile{},
+	}
+
+	config := &AgentConfig{
+		Name:         "main",
+		Model:        Gemini3Flash,
+		SystemPrompt: sysPrompt,
+		Tools:        mainTools,
+	}
+
+	agent, err := NewAgent(ctx, config)
+	if err != nil {
+		return nil, err
+	}
+
+	// Setup delegation
+	availableAgents := []string{}
+	for name, cfg := range agentRegistry {
+		availableAgents = append(availableAgents, name)
+		// Copy config to instance registry
+		c := cfg
+		agent.registry[name] = &c
+	}
+
+	delegateTool := &tools.DelegateAgent{
+		AvailableAgents: availableAgents,
+		Delegator:       agent.delegateTask,
+	}
+	agent.tools[delegateTool.Decl().Name] = delegateTool
 
 	return agent, nil
 }

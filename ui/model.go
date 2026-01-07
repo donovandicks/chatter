@@ -86,36 +86,22 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		spCmd tea.Cmd
 	)
 
-	// Delegate to slash commands first if active or input starts with /
-	// Note: textarea values can be multiline, slash commands usually only make sense at the start or on a single line?
-	// For now, we'll keep simple logic: if it starts with /, it's a command attempt.
+	// Check for slash command interactions (autocomplete/filtering)
 	if strings.HasPrefix(m.textarea.Value(), "/") {
-		handled, newVal, execute := m.slashCommands.Update(msg, m.textarea.Value())
+		handled, newVal, shouldExecute := m.slashCommands.Update(msg, m.textarea.Value())
 		if handled {
 			if newVal != "" {
 				m.textarea.SetValue(newVal)
-				// Move cursor to end
 				m.textarea.SetCursor(len(newVal))
 			}
-			if execute {
-				val := m.textarea.Value()
-				parts := strings.Fields(val)
-				if len(parts) > 0 {
-					cmdName := parts[0]
-					executed, newModel, cmd := m.slashCommands.ExecuteCommand(cmdName, &m)
-					if executed {
-						m.textarea.Reset()
-						return newModel, cmd
-					}
-				}
+			if shouldExecute {
+				return m.tryExecuteCommand()
 			}
 			return m, nil
 		}
 	} else {
 		// Only check autocomplete if not doing slash command
-		// Simplify cursor position to end of text
 		cursorIdx := len(m.textarea.Value())
-
 		handled, newVal, _ := m.autocomplete.Update(msg, m.textarea.Value(), cursorIdx)
 		if handled {
 			if newVal != "" {
@@ -141,18 +127,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case tea.KeyEnter:
 			if m.textarea.Value() != "" && !m.isLoading && !m.autocomplete.Active {
-				// Check if it's a command execution
-				val := m.textarea.Value()
-				if strings.HasPrefix(val, "/") {
-					parts := strings.Fields(val)
-					if len(parts) > 0 {
-						cmdName := parts[0]
-						executed, newModel, cmd := m.slashCommands.ExecuteCommand(cmdName, &m)
-						if executed {
-							m.textarea.Reset()
-							return newModel, cmd
-						}
-					}
+				if strings.HasPrefix(m.textarea.Value(), "/") {
+					return m.tryExecuteCommand()
 				}
 				return m.handleSendMessage()
 			}
@@ -163,6 +139,21 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.textarea, taCmd = m.textarea.Update(msg)
 
 	return m, tea.Batch(taCmd, vpCmd, spCmd)
+}
+
+// tryExecuteCommand parses and executes the current input as a slash command.
+func (m model) tryExecuteCommand() (tea.Model, tea.Cmd) {
+	val := m.textarea.Value()
+	parts := strings.Fields(val)
+	if len(parts) > 0 {
+		cmdName := parts[0]
+		executed, newModel, cmd := m.slashCommands.ExecuteCommand(cmdName, &m)
+		if executed {
+			m.textarea.Reset()
+			return newModel, cmd
+		}
+	}
+	return m, nil
 }
 
 func (m model) handleWindowSize(msg tea.WindowSizeMsg) model {
@@ -187,18 +178,6 @@ func (m model) handleSendMessage() (tea.Model, tea.Cmd) {
 	m.isLoading = true
 	// Keep the spinner spinning and send the request
 	return m, tea.Batch(m.spinner.Tick, sendToAgent(m.agent, userText))
-}
-
-func (m model) handleAgentResponse(msg agentResponseMsg) model {
-	m.isLoading = false
-	m.messages = append(m.messages, chatMessage{
-		Sender:  "Gemini",
-		Content: string(msg),
-		IsUser:  false,
-	})
-	m.viewport.SetContent(m.renderMessages())
-	m.viewport.GotoBottom()
-	return m
 }
 
 func (m model) renderMessages() string {

@@ -15,7 +15,7 @@ import (
 
 func main() {
 	ctx := context.Background()
-	agent, err := ai.NewAgent(ctx, nil)
+	agent, err := ai.NewMainAgent(ctx)
 	if err != nil {
 		log.Fatal(err)
 	}
