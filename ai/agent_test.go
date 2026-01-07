@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/donovandicks/chatter/ai/tools"
 	"github.com/donovandicks/chatter/internal/auth"
 )
 
@@ -27,6 +28,9 @@ func TestAgent_checkPermission_WriteFile(t *testing.T) {
 	agent := &Agent{
 		permManager:   pm,
 		permRequester: pr,
+		tools: map[string]tools.FunctionTool{
+			"write_file": &tools.WriteFile{},
+		},
 	}
 
 	ctx := context.Background()
@@ -76,6 +80,9 @@ func TestAgent_checkPermission_ReadFile(t *testing.T) {
 	agent := &Agent{
 		permManager:   pm,
 		permRequester: pr,
+		tools: map[string]tools.FunctionTool{
+			"read_file": &tools.ReadFile{},
+		},
 	}
 
 	ctx := context.Background()

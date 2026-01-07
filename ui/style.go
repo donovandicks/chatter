@@ -43,6 +43,28 @@ var (
 					BorderForeground(lipgloss.Color("240")).
 					Background(lipgloss.Color("235")).
 					MarginBottom(1)
+
+	// Permission Modal Styles
+	permBorderColor = lipgloss.Color("39")
+
+	PermDialogStyle = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(permBorderColor).
+			Padding(1, 2).
+			Width(60)
+
+	PermTitleStyle = lipgloss.NewStyle().
+			Foreground(permBorderColor).
+			Bold(true).
+			MarginBottom(1)
+
+	PermLabelStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+
+	PermTargetStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Bold(true)
+
+	PermHelpStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("240")).
+			MarginTop(1)
 )
 
 // renderMessage wraps the content in a styled box.

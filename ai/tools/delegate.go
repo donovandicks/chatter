@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/donovandicks/chatter/internal/auth"
 	"google.golang.org/genai"
 )
 
@@ -37,6 +38,16 @@ func (t *DelegateAgent) Decl() *genai.FunctionDeclaration {
 			},
 			Required: []string{"agent_name", "objective"},
 		},
+	}
+}
+
+// RequestPermission returns the permission action required for this tool.
+func (t *DelegateAgent) RequestPermission(args map[string]any) auth.Action {
+	agentName, _ := args["agent_name"].(string)
+	return auth.Action{
+		Type:      "agent",
+		Operation: "delegate",
+		Target:    agentName,
 	}
 }
 

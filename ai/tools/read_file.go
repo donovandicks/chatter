@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/donovandicks/chatter/internal/auth"
 	"google.golang.org/genai"
 )
 
@@ -25,6 +26,16 @@ func (t ReadFile) Decl() *genai.FunctionDeclaration {
 			},
 			Required: []string{"path"},
 		},
+	}
+}
+
+// RequestPermission returns the permission action required for this tool.
+func (t ReadFile) RequestPermission(args map[string]any) auth.Action {
+	path, _ := args["path"].(string)
+	return auth.Action{
+		Type:      "file",
+		Operation: "read",
+		Target:    path,
 	}
 }
 

@@ -2,8 +2,12 @@ package ui
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/donovandicks/chatter/internal/auth"
+
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // PermissionRequestMsg is sent to the UI when the agent needs approval.
@@ -42,4 +46,46 @@ func (r *UIPermissionRequester) RequestApproval(ctx context.Context, action auth
 	case <-ctx.Done():
 		return auth.LevelReject, ctx.Err()
 	}
+}
+
+// HandlePermissionKeyMsg processes key events for the permission modal.
+// Returns the permission level chosen and a boolean indicating if a choice was made.
+func HandlePermissionKeyMsg(msg tea.KeyMsg) (auth.PermissionLevel, bool) {
+	switch msg.String() {
+	case "y", "Y":
+		return auth.LevelApproveOnce, true
+	case "s", "S":
+		return auth.LevelApproveSession, true
+	case "n", "N", "esc":
+		return auth.LevelReject, true
+	}
+	return auth.LevelReject, false
+}
+
+// RenderPermissionModal renders the permission request dialog.
+func RenderPermissionModal(req PermissionRequestMsg, width, height int) string {
+	action := req.Action
+	var prompt string
+
+	switch action.Type {
+	case "file":
+		prompt = fmt.Sprintf("I need to %s the following file:", action.Operation)
+	case "shell":
+		prompt = "I need to execute this command:"
+	default:
+		prompt = fmt.Sprintf("I need to perform '%s' on:", action.Operation)
+	}
+
+	helpText := "y: Allow Once  •  s: Allow Session  •  n: Deny"
+
+	// Assemble content
+	content := lipgloss.JoinVertical(lipgloss.Left,
+		PermTitleStyle.Render("Action Review"),
+		PermLabelStyle.Render(prompt),
+		PermTargetStyle.Render(action.Target),
+		PermHelpStyle.Render(helpText),
+	)
+
+	// Center the dialog on screen
+	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, PermDialogStyle.Render(content))
 }

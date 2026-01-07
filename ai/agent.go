@@ -173,28 +173,13 @@ func (a *Agent) checkPermission(ctx context.Context, toolName string, args map[s
 		return nil
 	}
 
-	// Map tool call to Action
-	action := auth.Action{
-		Type:      "tool",
-		Operation: toolName,
-		Target:    fmt.Sprintf("%v", args), // Simple representation for now
+	tool, ok := a.tools[toolName]
+	if !ok {
+		return fmt.Errorf("tool %q not found", toolName)
 	}
 
-	// Refine action based on tool specifics
-	switch toolName {
-	case "read_file":
-		action.Type = "file"
-		action.Operation = "read"
-		if path, ok := args["path"].(string); ok {
-			action.Target = path
-		}
-	case "write_file":
-		action.Type = "file"
-		action.Operation = "write"
-		if path, ok := args["path"].(string); ok {
-			action.Target = path
-		}
-	}
+	// Get the required action from the tool itself
+	action := tool.RequestPermission(args)
 
 	// Check existing permissions
 	if a.permManager.Check(action) {

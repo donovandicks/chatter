@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/donovandicks/chatter/internal/auth"
 	"google.golang.org/genai"
 )
 
@@ -30,6 +31,16 @@ func (t WriteFile) Decl() *genai.FunctionDeclaration {
 			},
 			Required: []string{"path", "content"},
 		},
+	}
+}
+
+// RequestPermission returns the permission action required for this tool.
+func (t WriteFile) RequestPermission(args map[string]any) auth.Action {
+	path, _ := args["path"].(string)
+	return auth.Action{
+		Type:      "file",
+		Operation: "write",
+		Target:    path,
 	}
 }
 

@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/donovandicks/chatter/ai"
-	"github.com/donovandicks/chatter/internal/auth"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textarea"
@@ -107,21 +106,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// If a permission request is active, intercept all key inputs
 	if m.activePermRequest != nil {
 		if msg, ok := msg.(tea.KeyMsg); ok {
-			var response auth.PermissionLevel
-			responded := false
-
-			switch msg.String() {
-			case "y", "Y":
-				response = auth.LevelApproveOnce
-				responded = true
-			case "s", "S":
-				response = auth.LevelApproveSession
-				responded = true
-			case "n", "N", "esc":
-				response = auth.LevelReject
-				responded = true
-			}
-
+			response, responded := HandlePermissionKeyMsg(msg)
 			if responded {
 				m.activePermRequest.ResponseChan <- response
 				m.activePermRequest = nil
@@ -342,7 +327,7 @@ func (m model) View() string {
 	}
 
 	if m.activePermRequest != nil {
-		return m.renderPermissionModal()
+		return RenderPermissionModal(*m.activePermRequest, m.width, m.height)
 	}
 
 	ui := lipgloss.JoinVertical(lipgloss.Left,
@@ -351,57 +336,6 @@ func (m model) View() string {
 	)
 
 	return lipgloss.PlaceVertical(m.height, lipgloss.Bottom, ui)
-}
-
-func (m model) renderPermissionModal() string {
-	// Use the bot's color for the border to indicate it's a request from the assistant
-	borderColor := lipgloss.Color("39")
-
-	dialogStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(borderColor).
-		Padding(1, 2).
-		Width(60)
-
-	// Softer title
-	titleStyle := lipgloss.NewStyle().
-		Foreground(borderColor).
-		Bold(true).
-		MarginBottom(1)
-
-	// Text styles
-	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245"))                // Grey
-	targetStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Bold(true) // White/Bright
-
-	action := m.activePermRequest.Action
-	var prompt string
-
-	switch action.Type {
-	case "file":
-		prompt = fmt.Sprintf("I need to %s the following file:", action.Operation)
-	case "shell":
-		prompt = "I need to execute this command:"
-	default:
-		prompt = fmt.Sprintf("I need to perform '%s' on:", action.Operation)
-	}
-
-	// Helper text at the bottom
-	helpStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("240")).
-		MarginTop(1)
-
-	helpText := "y: Allow Once  •  s: Allow Session  •  n: Deny"
-
-	// Assemble content
-	content := lipgloss.JoinVertical(lipgloss.Left,
-		titleStyle.Render("Action Review"),
-		labelStyle.Render(prompt),
-		targetStyle.Render(action.Target),
-		helpStyle.Render(helpText),
-	)
-
-	// Center the dialog on screen
-	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, dialogStyle.Render(content))
 }
 
 func sendToAgent(ctx context.Context, agent *ai.Agent, prompt string) tea.Cmd {
