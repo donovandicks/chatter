@@ -354,23 +354,54 @@ func (m model) View() string {
 }
 
 func (m model) renderPermissionModal() string {
-	dialog := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("205")).
-		Padding(1, 2).
-		Width(60).
-		Align(lipgloss.Center)
+	// Use the bot's color for the border to indicate it's a request from the assistant
+	borderColor := lipgloss.Color("39")
 
-	title := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("205")).Render("PERMISSION REQUEST")
+	dialogStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(borderColor).
+		Padding(1, 2).
+		Width(60)
+
+	// Softer title
+	titleStyle := lipgloss.NewStyle().
+		Foreground(borderColor).
+		Bold(true).
+		MarginBottom(1)
+
+	// Text styles
+	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("245"))                // Grey
+	targetStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Bold(true) // White/Bright
 
 	action := m.activePermRequest.Action
-	details := fmt.Sprintf("\nType: %s\nOp:   %s\nTarget: %s\n", action.Type, action.Operation, action.Target)
+	var prompt string
 
-	help := lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render("\n(y) Once  (s) Session  (n/esc) Reject")
+	switch action.Type {
+	case "file":
+		prompt = fmt.Sprintf("I need to %s the following file:", action.Operation)
+	case "shell":
+		prompt = "I need to execute this command:"
+	default:
+		prompt = fmt.Sprintf("I need to perform '%s' on:", action.Operation)
+	}
 
-	content := lipgloss.JoinVertical(lipgloss.Center, title, details, help)
+	// Helper text at the bottom
+	helpStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("240")).
+		MarginTop(1)
 
-	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, dialog.Render(content))
+	helpText := "y: Allow Once  •  s: Allow Session  •  n: Deny"
+
+	// Assemble content
+	content := lipgloss.JoinVertical(lipgloss.Left,
+		titleStyle.Render("Action Review"),
+		labelStyle.Render(prompt),
+		targetStyle.Render(action.Target),
+		helpStyle.Render(helpText),
+	)
+
+	// Center the dialog on screen
+	return lipgloss.Place(m.width, m.height, lipgloss.Center, lipgloss.Center, dialogStyle.Render(content))
 }
 
 func sendToAgent(ctx context.Context, agent *ai.Agent, prompt string) tea.Cmd {
