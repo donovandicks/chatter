@@ -2,35 +2,45 @@
 
 Chatter is an experimental AI coding agent project.
 
-## Tooling
+## Tooling & Environment
 
-The project uses the Go programming language, using the latest 1.25 version.
-It uses modern Golang conventions and the `go` CLI command for build and test,
-though there are some convenient recipes in `Makefile` for common commands.
+- **Go Version:** 1.25+
+- **Linter:** `golangci-lint` (comprehensive static analysis)
+- **Formatter:** `gofumpt` (strict "gofmt")
+- **TUI Framework:** `charmbracelet/bubbletea` (Elm architecture)
+- **AI SDK:** `google.golang.org/genai`
 
-The project uses the popular "github.com/charmbracelet/bubbletea" TUI library
-for the terminal interface.
+## Best Practices
 
-## AI Usage
+### Code Quality & Style
 
-The project exclusively (for now) uses Google's Gemini AI. The AI API is
-accessed using the `google.golang.org/genai` SDK.
+- **Error Handling:** Use `fmt.Errorf("...: %w", err)` for wrapping errors to preserve context. Handle all errors explicitly.
+- **Context:** Propagate `context.Context` as the first argument in long-running or I/O-bound functions.
+- **Logging:** Use `log/slog` for structured, leveled logging.
+- **Concurrency:** Prefer channels and `select` for orchestration; use `sync` primitives for state protection. Avoid uncaught goroutines.
+- **Configuration:** Use functional options for complex constructors.
 
-## Guidelines
+### Architecture
 
-- Use only modern, idiomatic Golang.
-- Write tests for functions when applicable.
-  - Use table-driven tests when appropriate.
+- **Package Layout:** Keep core logic in `internal/`. Expose only necessary API surfaces.
+- **Interfaces:** Define small, consumer-centric interfaces (Interface Segregation Principle).
+- **TUI (Bubble Tea):** Keep `Update` functions pure where possible. Use `tea.Cmd` for all side effects (I/O, API calls).
 
-## Rules
+### Testing
 
-Run the following commands and fix any issues before committing changes:
+- **Table-Driven Tests:** Strongly preferred for logic with multiple edge cases.
+- **Subtests:** Use `t.Run()` for clear test hierarchy.
+- **Test Helpers:** Mark helpers with `t.Helper()` for accurate failure reporting.
 
-- `make fmt`
-- `make lint`
-- `make test`
-- `make build`
+## Workflow
 
-Commit changes after writing code with `git commit -m "<YOUR MESSAGE HERE>"`. Commit
-messages should start with a short subject line followed by a large description
-on a newline.
+1. Develop: Implement changes and features as requested.
+2. **Verify:** Run `make fmt lint test build` before committing.
+3. **Commit:** Use the conventional format:
+
+    ```text
+    <short summary>
+
+    <detailed description if necessary>
+    ```
+
