@@ -109,10 +109,7 @@ func (a *Autocomplete) View() string {
 	if end > len(a.suggestions) {
 		end = len(a.suggestions)
 		// Adjust start if we hit the bottom but have space at the top
-		start = end - windowSize
-		if start < 0 {
-			start = 0
-		}
+		start = max(end-windowSize, 0)
 	}
 
 	for i, s := range a.suggestions[start:end] {

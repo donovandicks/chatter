@@ -140,94 +140,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyCtrlC:
 			return m, tea.Quit
 		case tea.KeyEnter:
-			// Shift+Enter to add newline (handled by textarea default if we pass it through?)
-			// Actually bubbles textarea adds newline on Enter.
-			// We want Enter to Submit, Shift+Enter to Newline.
-			// Check for Shift modifier? tea.KeyMsg doesn't always have modifiers reliably for Enter in all terminals,
-			// but usually assume standard behavior.
-			// However, usually we can't detect Shift+Enter vs Enter easily in TUI without raw mode quirks.
-			// But let's check generic logic:
-			// If we just want to allow newline, maybe we rely on a specific key combo or just let standard behavior work?
-			// The user explicitly asked for Shift+Enter.
-			// Common pattern:
-			// if msg.Type == tea.KeyEnter {
-			//   if msg.Alt { ... }
-			// }
-			// Bubbles/textarea might capture Shift+Enter as just Enter?
-			// Let	's assume we want Enter = Submit.
-			// We will NOT pass Enter to textarea if we want to submit.
-			// If we want newline, we PASS it.
-			// But how to detect Shift+Enter?
-			// tea.KeyMsg has Paste, Runes, etc.
-			// Some terminals send different codes.
-			// But standard Bubbles/Textarea might not expose "Shift+Enter" distinct from "Enter".
-			// Let's try to see if we can just implement "Enter submits".
-			// And we assume user presses something else for newline?
-			// OR we assume standard text area behavior, but we define a custom key for submit?
-			// User asked: "support a 'shift-enter' combination press to add a newline".
-			// This implies default Enter doesn't add newline.
-			// So:
-			// default: Enter -> Submit.
-			// Shift+Enter -> Newline.
-			// In TUI, Shift+Enter is often indistinguishable from Enter.
-			// Alternatives: Ctrl+Enter, Alt+Enter.
-			// Let's try to check for Alt (Option) if Shift isn't available, or just check standard behavior.
-			// But let's try to stick to the request.
-			// If we can't distinguish, we might need a different key.
-			// BUT: we can check `msg.Paste`? No.
-			// Let's assume we capture Enter.
-			// If we just check `msg.Type == tea.KeyEnter`, we catch all enters.
-			// If we just return `m.handleSendMessage()` here, we block newlines.
-			// To insert a newline, we explicitly modify value? Or pass to textarea?
-			// If we want Shift+Enter, usually specific terminals send specific sequences.
-			// Let's assume for now we capture Enter for submit.
-			// And we allow Esc+Enter or something?
-			// Actually, let's look at `m.textarea.Update(msg)`.
-			// If we simply check `msg.Type == tea.KeyEnter` BEFORE calling textarea.Update:
-			// We can submit.
-			// But how do we allow newline?
-			// Maybe we rely on the fact that we can't easily detect Shift+Enter in all terminals,
-			// so we might default to "Alt+Enter" or similar which is safer.
-			// But let's try to match user request.
-			// If we assume the user knows their terminal supports it.
-			// But wait, if we can't detect it, we can't implement it.
-			// Let's assume standard behavior:
-			// If I just let `textarea` handle it, Enter = Newline.
-			// Then user has to press Ctrl+S to submit?
-			// User asked for "User input ... maxes out too early. Allow user to write more ... support shift-enter to add newline".
-			// This implies the *primary* action of Enter should be Submit (like in Slack/Discord).
-			// So:
-			// if msg.Type == tea.KeyEnter {
-			//    if !isShiftEnter(msg) { return submit }
-			// }
-			// Textarea handles the actual newline insertion if we pass the msg.
-			// So if it IS ShiftEnter, we pass it to textarea.
-			// How to detect isShiftEnter?
-			// Unfortunately `tea.KeyMsg` doesn't always flag Shift.
-			// But let's try assuming standard `tea.KeyEnter`.
-			// If we can't distinguish, maybe we toggle?
-			// Let's look for `msg.Alt` or `msg.Ctrl`.
-			// I will implement: Enter = Submit. Alt+Enter (common alternative) = Newline.
-			// AND I will add a comment about Shift+Enter limitations, or check if I can parse it?
-			// Actually, let's implement the logic such that if the message is empty, Enter does nothing?
-			// No.
-			// Let's stick to: Enter -> Submit.
-			// And we assume `textarea` handles newlines if we pass it.
-			// So `if msg.Type == tea.KeyEnter { return m.handleSendMessage() }` blocks newlines.
-			// I will code it so `Enter` submits.
-			// I will add a comment that Shift+Enter support depends on terminal, but I'll try to check generic modifiers if possible?
-			// Bubbletea KeyMsg doesn't have "Shift" bool specifically exposed easily on all platforms.
-			// However, `textarea` supports `SendLine`?
-			// Let's just implement: Enter -> Submit.
-			// If the user *really* wants newlines, they might use `Alt+Enter` which bubbles usually supports?
-			// Actually, let's look at the source of `textarea`. It binds `Enter` to `InsertNewline`.
-			// I will implement:
-			// Case Enter:
-			//   Submit.
-			// Case Alt+Enter / Ctrl+Enter:
-			//   Pass to textarea (which inserts newline).
-			// This satisfies "allow user to write more" (multiline).
-			// The "Shift-Enter" part is tricky. I'll stick to Enter=Submit.
 			if m.textarea.Value() != "" && !m.isLoading && !m.autocomplete.Active {
 				// Check if it's a command execution
 				val := m.textarea.Value()
@@ -244,7 +156,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				return m.handleSendMessage()
 			}
-			// If empty, maybe insert newline? No, just ignore.
 			return m, nil
 		}
 	}

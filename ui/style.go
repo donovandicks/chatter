@@ -67,13 +67,6 @@ func renderMessage(sender, content string, isUser bool, width int) string {
 
 	// Render the box with the specified width
 	return boxStyle.
-		Width(width - 2). // Account for outer margins/imperfections? Lipgloss Border adds to width if not specified?
-		// Actually, if we set Width on the style, it includes content + padding, but border is added outside if standard box model isn't used?
-		// Lipgloss default is: Width applies to the content area unless `Border` is used, then it depends.
-		// Let's set Width on the style which usually enforces the *content* width if not careful,
-		// but `Width` on a style with Border usually sets the total width if using standard sizing or just content?
-		// Safest is to set width on the content and let the box wrap it.
-		// But to force the box to expand to the viewport:
 		Width(width - 2). // -2 for right margin/gutter safety
 		Render(
 			lipgloss.JoinVertical(lipgloss.Left,
