@@ -34,6 +34,8 @@ type model struct {
 	autocomplete  *Autocomplete
 	slashCommands *SlashCommandHandler
 	cancelRequest context.CancelFunc
+	width         int
+	height        int
 }
 
 type (
@@ -100,6 +102,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if shouldExecute {
 				return m.tryExecuteCommand()
 			}
+			m = m.recalculateViewportHeight()
 			return m, nil
 		}
 	} else {
@@ -111,6 +114,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.textarea.SetValue(newVal)
 				m.textarea.SetCursor(len(newVal))
 			}
+			m = m.recalculateViewportHeight()
 			return m, nil
 		}
 	}
@@ -140,11 +144,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				})
 				m.viewport.SetContent(m.renderMessages())
 				m.viewport.GotoBottom()
+				m = m.recalculateViewportHeight()
 				return m, nil
 			}
 		case tea.KeyEnter:
 			if msg.Alt {
 				m.textarea, taCmd = m.textarea.Update(tea.KeyMsg{Type: tea.KeyEnter})
+				m = m.recalculateViewportHeight()
 				return m, tea.Batch(taCmd, vpCmd, spCmd)
 			}
 			if m.textarea.Value() != "" && !m.isLoading && !m.autocomplete.Active {
@@ -171,10 +177,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		})
 		m.viewport.SetContent(m.renderMessages())
 		m.viewport.GotoBottom()
+		m = m.recalculateViewportHeight()
 		return m, nil
 	}
 
 	m.textarea, taCmd = m.textarea.Update(msg)
+	m = m.recalculateViewportHeight()
 
 	return m, tea.Batch(taCmd, vpCmd, spCmd)
 }
@@ -187,7 +195,11 @@ func (m model) tryExecuteCommand() (tea.Model, tea.Cmd) {
 		cmdName := parts[0]
 		executed, newModel, cmd := m.slashCommands.ExecuteCommand(cmdName, &m)
 		if executed {
-			m.textarea.Reset()
+			if nm, ok := newModel.(*model); ok {
+				nm.textarea.Reset()
+				*nm = nm.recalculateViewportHeight()
+				return *nm, cmd
+			}
 			return newModel, cmd
 		}
 	}
@@ -195,11 +207,50 @@ func (m model) tryExecuteCommand() (tea.Model, tea.Cmd) {
 }
 
 func (m model) handleWindowSize(msg tea.WindowSizeMsg) model {
+	m.width = msg.Width
+	m.height = msg.Height
 	m.viewport.Width = msg.Width
 	m.textarea.SetWidth(msg.Width)
-	m.viewport.Height = msg.Height - 10 // Adjust for input + suggestions space
+	m = m.recalculateViewportHeight()
 	m.viewport.SetContent(m.renderMessages())
 	return m
+}
+
+func (m model) recalculateViewportHeight() model {
+	if m.height == 0 {
+		return m
+	}
+	footerHeight := lipgloss.Height(m.footerView())
+	m.viewport.Height = m.height - footerHeight
+	if m.viewport.Height < 1 {
+		m.viewport.Height = 1
+	}
+	return m
+}
+
+func (m model) footerView() string {
+	if m.isLoading {
+		return fmt.Sprintf("\n%s %s", m.spinner.View(), "Thinking... (Esc to cancel)")
+	}
+
+	suggestionsView := m.autocomplete.View()
+	// Overwrite suggestions if slash command is active
+	if m.slashCommands.Active {
+		suggestionsView = m.slashCommands.View()
+	}
+
+	var sb strings.Builder
+	if suggestionsView != "" {
+		sb.WriteString(suggestionsView)
+		sb.WriteString("\n")
+	}
+
+	sb.WriteString("\n")
+	sb.WriteString(m.textarea.View())
+	sb.WriteString("\n")
+	sb.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render("Enter to send • Alt+Enter for newline"))
+
+	return sb.String()
 }
 
 func (m model) handleSendMessage() (tea.Model, tea.Cmd) {
@@ -217,6 +268,8 @@ func (m model) handleSendMessage() (tea.Model, tea.Cmd) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	m.cancelRequest = cancel
+
+	m = m.recalculateViewportHeight()
 
 	// Keep the spinner spinning and send the request
 	return m, tea.Batch(m.spinner.Tick, sendToAgent(ctx, m.agent, userText))
@@ -239,28 +292,12 @@ func (m model) View() string {
 		return fmt.Sprintf("Error: %v\nPress Ctrl+C to quit.", m.err)
 	}
 
-	suggestionsView := m.autocomplete.View()
-	// Overwrite suggestions if slash command is active
-	if m.slashCommands.Active {
-		suggestionsView = m.slashCommands.View()
-	}
-
-	if m.isLoading {
-		return fmt.Sprintf(
-			"%s\n\n%s %s",
-			m.viewport.View(),
-			m.spinner.View(),
-			"Thinking... (Esc to cancel)",
-		) + "\n"
-	}
-
-	return fmt.Sprintf(
-		"%s%s\n\n%s\n%s",
+	ui := lipgloss.JoinVertical(lipgloss.Left,
 		m.viewport.View(),
-		suggestionsView,
-		m.textarea.View(),
-		lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render("Enter to send • Alt+Enter for newline"),
-	) + "\n"
+		m.footerView(),
+	)
+
+	return lipgloss.PlaceVertical(m.height, lipgloss.Bottom, ui)
 }
 
 func sendToAgent(ctx context.Context, agent *ai.Agent, prompt string) tea.Cmd {
