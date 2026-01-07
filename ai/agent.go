@@ -186,6 +186,9 @@ func (a *Agent) SendMessage(ctx context.Context, prompt string) (string, error) 
 			},
 		)
 		if err != nil {
+			if errors.Is(err, context.Canceled) {
+				return "", err
+			}
 			slog.ErrorContext(ctx, "failed to generate AI response", "error", err)
 			return "", err
 		}

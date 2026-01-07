@@ -3,6 +3,7 @@ package ui
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -32,6 +33,7 @@ type model struct {
 	err           error
 	autocomplete  *Autocomplete
 	slashCommands *SlashCommandHandler
+	cancelRequest context.CancelFunc
 }
 
 type (
@@ -72,6 +74,7 @@ func NewModel(agent *ai.Agent) tea.Model {
 		err:           nil,
 		autocomplete:  NewAutocomplete(),
 		slashCommands: NewSlashCommandHandler(),
+		cancelRequest: nil,
 	}
 }
 
@@ -125,6 +128,20 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.Type {
 		case tea.KeyCtrlC:
 			return m, tea.Quit
+		case tea.KeyEsc:
+			if m.isLoading && m.cancelRequest != nil {
+				m.cancelRequest()
+				m.cancelRequest = nil
+				m.isLoading = false
+				m.messages = append(m.messages, chatMessage{
+					Sender:  "System",
+					Content: "Request cancelled.",
+					IsUser:  false,
+				})
+				m.viewport.SetContent(m.renderMessages())
+				m.viewport.GotoBottom()
+				return m, nil
+			}
 		case tea.KeyEnter:
 			if m.textarea.Value() != "" && !m.isLoading && !m.autocomplete.Active {
 				if strings.HasPrefix(m.textarea.Value(), "/") {
@@ -134,6 +151,23 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		}
+	case errMsg:
+		if errors.Is(msg, context.Canceled) || strings.Contains(msg.Error(), "context canceled") {
+			return m, nil
+		}
+		m.err = msg
+		return m, nil
+	case agentResponseMsg:
+		m.isLoading = false
+		m.cancelRequest = nil // Clear cancel function on success
+		m.messages = append(m.messages, chatMessage{
+			Sender:  "Gemini",
+			Content: string(msg),
+			IsUser:  false,
+		})
+		m.viewport.SetContent(m.renderMessages())
+		m.viewport.GotoBottom()
+		return m, nil
 	}
 
 	m.textarea, taCmd = m.textarea.Update(msg)
@@ -176,8 +210,12 @@ func (m model) handleSendMessage() (tea.Model, tea.Cmd) {
 	m.viewport.GotoBottom()
 
 	m.isLoading = true
+
+	ctx, cancel := context.WithCancel(context.Background())
+	m.cancelRequest = cancel
+
 	// Keep the spinner spinning and send the request
-	return m, tea.Batch(m.spinner.Tick, sendToAgent(m.agent, userText))
+	return m, tea.Batch(m.spinner.Tick, sendToAgent(ctx, m.agent, userText))
 }
 
 func (m model) renderMessages() string {
@@ -208,7 +246,7 @@ func (m model) View() string {
 			"%s\n\n%s %s",
 			m.viewport.View(),
 			m.spinner.View(),
-			"Thinking...",
+			"Thinking... (Esc to cancel)",
 		) + "\n"
 	}
 
@@ -221,9 +259,9 @@ func (m model) View() string {
 	) + "\n"
 }
 
-func sendToAgent(agent *ai.Agent, prompt string) tea.Cmd {
+func sendToAgent(ctx context.Context, agent *ai.Agent, prompt string) tea.Cmd {
 	return func() tea.Msg {
-		resp, err := agent.SendMessage(context.Background(), prompt)
+		resp, err := agent.SendMessage(ctx, prompt)
 		if err != nil {
 			return errMsg(err)
 		}
