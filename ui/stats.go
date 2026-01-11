@@ -46,13 +46,15 @@ var (
 )
 
 // RenderStats formats the session statistics into a styled string.
-func RenderStats(stats ai.SessionStats) string {
+func RenderStats(stats ai.SessionStats, showGoodbye bool) string {
 	var sb strings.Builder
 
 	// Goodbye Message
-	sb.WriteString("\n")
-	sb.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("#6272A4")).Render("Agent powering down. Goodbye!"))
-	sb.WriteString("\n\n")
+	if showGoodbye {
+		sb.WriteString("\n")
+		sb.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("#6272A4")).Render("Agent powering down. Goodbye!"))
+		sb.WriteString("\n\n")
+	}
 
 	// --- Interaction Summary ---
 	sb.WriteString(headerStyle.Render("Interaction Summary"))

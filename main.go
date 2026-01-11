@@ -33,5 +33,5 @@ func main() {
 	}
 
 	stats := agent.GetStats()
-	fmt.Println(ui.RenderStats(stats))
+	fmt.Println(ui.RenderStats(stats, true))
 }

@@ -74,6 +74,16 @@ func NewSlashCommandHandler() *SlashCommandHandler {
 				},
 			},
 			{
+				Name:        "/stats",
+				Description: "Show session statistics",
+				Execute: func(m *model, args []string) (tea.Model, tea.Cmd) {
+					stats := m.agent.GetStats()
+					// Pass false to suppress the "Goodbye" message
+					output := RenderStats(stats, false)
+					return addSystemMessage(m, output), nil
+				},
+			},
+			{
 				Name:        "/quit",
 				Description: "Exit the session",
 				Execute: func(m *model, args []string) (tea.Model, tea.Cmd) {
