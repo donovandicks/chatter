@@ -3,9 +3,12 @@ package ai
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	_ "embed"
 
@@ -39,11 +42,25 @@ type AgentRegistry struct {
 	agents map[string]AgentConfig
 }
 
+// ModelUsage tracks usage statistics for a specific model.
+type ModelUsage struct {
+	Requests     int
+	InputTokens  int
+	OutputTokens int
+}
+
 // SessionStats holds the usage statistics for the agent's session.
 type SessionStats struct {
+	SessionID         string
+	StartTime         time.Time
 	TotalInputTokens  int
 	TotalOutputTokens int
 	TotalTokens       int
+	ApiDuration       time.Duration
+	ToolDuration      time.Duration
+	ToolCalls         int
+	ToolErrors        int
+	ModelUsage        map[string]*ModelUsage
 }
 
 // NewAgentRegistry creates a new, empty agent registry.
@@ -112,6 +129,14 @@ func NewAgent(ctx context.Context, config *AgentConfig, pm *auth.PermissionManag
 		return nil, errors.Join(fmt.Errorf("failed to create AI client"), err)
 	}
 
+	// Generate a random session ID
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		// Fallback if random fails, though unlikely
+		b = []byte("fallbacksession")
+	}
+	sessionID := hex.EncodeToString(b)
+
 	agent := &Agent{
 		client:        client,
 		model:         config.Model,
@@ -121,6 +146,11 @@ func NewAgent(ctx context.Context, config *AgentConfig, pm *auth.PermissionManag
 		registry:      registry,
 		permManager:   pm,
 		permRequester: pr,
+		stats: SessionStats{
+			SessionID:  sessionID,
+			StartTime:  time.Now(),
+			ModelUsage: make(map[string]*ModelUsage),
+		},
 	}
 
 	// Register tools
@@ -256,6 +286,7 @@ func (a *Agent) SendMessage(ctx context.Context, prompt string) (string, error) 
 	// So we append to a.history as we go.
 
 	for {
+		start := time.Now()
 		response, err := a.client.Models.GenerateContent(
 			ctx,
 			string(a.model),
@@ -269,6 +300,8 @@ func (a *Agent) SendMessage(ctx context.Context, prompt string) (string, error) 
 				},
 			},
 		)
+		a.stats.ApiDuration += time.Since(start)
+
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
 				return "", err
@@ -278,9 +311,22 @@ func (a *Agent) SendMessage(ctx context.Context, prompt string) (string, error) 
 		}
 
 		if response.UsageMetadata != nil {
-			a.stats.TotalInputTokens += int(response.UsageMetadata.PromptTokenCount)
-			a.stats.TotalOutputTokens += int(response.UsageMetadata.CandidatesTokenCount)
-			a.stats.TotalTokens += int(response.UsageMetadata.TotalTokenCount)
+			inputTokens := int(response.UsageMetadata.PromptTokenCount)
+			outputTokens := int(response.UsageMetadata.CandidatesTokenCount)
+			totalTokens := int(response.UsageMetadata.TotalTokenCount)
+
+			a.stats.TotalInputTokens += inputTokens
+			a.stats.TotalOutputTokens += outputTokens
+			a.stats.TotalTokens += totalTokens
+
+			// Update per-model stats
+			modelName := string(a.model)
+			if _, ok := a.stats.ModelUsage[modelName]; !ok {
+				a.stats.ModelUsage[modelName] = &ModelUsage{}
+			}
+			a.stats.ModelUsage[modelName].Requests++
+			a.stats.ModelUsage[modelName].InputTokens += inputTokens
+			a.stats.ModelUsage[modelName].OutputTokens += outputTokens
 		}
 
 		if len(response.Candidates) == 0 {
@@ -308,21 +354,29 @@ func (a *Agent) SendMessage(ctx context.Context, prompt string) (string, error) 
 		for _, fc := range functionCalls {
 			tool, ok := a.tools[fc.Name]
 			var resp map[string]any
+			
+			a.stats.ToolCalls++
+			toolStart := time.Now()
+
 			if !ok {
 				resp = map[string]any{"error": fmt.Sprintf("tool %q not found", fc.Name)}
+				a.stats.ToolErrors++
 			} else {
 				// Check permission
 				if err := a.checkPermission(ctx, fc.Name, fc.Args); err != nil {
 					resp = map[string]any{"error": fmt.Sprintf("permission denied: %v", err)}
+					a.stats.ToolErrors++
 				} else {
 					res, err := tool.Run(fc.Args)
 					if err != nil {
 						resp = map[string]any{"error": err.Error()}
+						a.stats.ToolErrors++
 					} else {
 						resp = map[string]any{"result": res}
 					}
 				}
 			}
+			a.stats.ToolDuration += time.Since(toolStart)
 
 			// Add tool response to history
 			toolResponseContent := &genai.Content{

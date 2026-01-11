@@ -33,8 +33,5 @@ func main() {
 	}
 
 	stats := agent.GetStats()
-	fmt.Println("\n--- Session Stats ---")
-	fmt.Printf("Total Tokens:  %d\n", stats.TotalTokens)
-	fmt.Printf("Input Tokens:  %d\n", stats.TotalInputTokens)
-	fmt.Printf("Output Tokens: %d\n", stats.TotalOutputTokens)
+	fmt.Println(ui.RenderStats(stats))
 }
