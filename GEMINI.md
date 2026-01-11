@@ -1,46 +1,59 @@
 # Chatter
 
-Chatter is an experimental AI coding agent project.
+Chatter is an experimental AI coding agent designed to run in the terminal. It leverages the Google GenAI SDK and a TUI (Text User Interface) built with Bubble Tea to provide an interactive coding assistant.
 
-## Tooling & Environment
+## Project Overview
 
-- **Go Version:** 1.25+
-- **Linter:** `golangci-lint` (comprehensive static analysis)
-- **Formatter:** `gofumpt` (strict "gofmt")
-- **TUI Framework:** `charmbracelet/bubbletea` (Elm architecture)
-- **AI SDK:** `google.golang.org/genai`
+* **Goal:** To create a capable, CLI-based AI agent that can understand codebase context, plan tasks, and execute file operations safely.
+* **Key Features:**
+  * **TUI:** Rich terminal interface using `charmbracelet/bubbletea`.
+  * **AI Backend:** Powered by Google's Gemini models (Flash and Pro) via `google.golang.org/genai`.
+  * **Agent Architecture:** Supports main agent and specialized sub-agents (e.g., "planner") via delegation.
+  * **Safety:** Built-in permission system (`internal/auth`) to control file access and tool usage.
 
-## Best Practices
+## Architecture
 
-### Code Quality & Style
+The project follows a standard Go project layout:
 
-- **Error Handling:** Use `fmt.Errorf("...: %w", err)` for wrapping errors to preserve context. Handle all errors explicitly.
-- **Context:** Propagate `context.Context` as the first argument in long-running or I/O-bound functions.
-- **Logging:** Use `log/slog` for structured, leveled logging.
-- **Concurrency:** Prefer channels and `select` for orchestration; use `sync` primitives for state protection. Avoid uncaught goroutines.
-- **Configuration:** Use functional options for complex constructors.
+* **`main.go`**: The application entry point. Initializes the permission manager, the AI agent, and starts the TUI program.
+* **`ai/`**: Contains the core AI logic.
+  * `agent.go`: Manages the agent state, conversation history, and tool execution loop.
+  * `tools/`: Definitions for tools the agent can use (e.g., `ReadFile`, `WriteFile`, `DelegateAgent`).
+  * `agent_system.md` / `planner.md`: System prompts defining the agent's persona and capabilities.
+* **`ui/`**: The presentation layer.
+  * `model.go`: The main Bubble Tea model handling state and view updates.
+  * `slash_commands.go`: Handles user input commands (e.g., `/help`, `/quit`).
+* **`internal/`**: Private application code.
+  * `auth/`: Handles permission logic (Ask, Grant Session, Reject).
+  * `fsutil/`: File system utilities.
 
-### Architecture
+## Development
 
-- **Package Layout:** Keep core logic in `internal/`. Expose only necessary API surfaces.
-- **Interfaces:** Define small, consumer-centric interfaces (Interface Segregation Principle).
-- **TUI (Bubble Tea):** Keep `Update` functions pure where possible. Use `tea.Cmd` for all side effects (I/O, API calls).
+### Prerequisites
 
-### Testing
+* **Go:** Version 1.25+
+* **API Key:** A valid Google Gemini API key is required (usually set in a `.env` file).
 
-- **Table-Driven Tests:** Strongly preferred for logic with multiple edge cases.
-- **Subtests:** Use `t.Run()` for clear test hierarchy.
-- **Test Helpers:** Mark helpers with `t.Helper()` for accurate failure reporting.
+### Commands
 
-## Workflow
+The project uses a `Makefile` to automate common tasks:
 
-1. Develop: Implement changes and features as requested.
-2. **Verify:** Run `make fmt lint test build` before committing.
-3. **Commit:** Use the conventional format:
+* **Build:** `make build` (Outputs binary to `./chatter`)
+* **Test:** `make test` (Runs all tests)
+* **Format:** `make fmt` (Applies `gofumpt`)
+* **Lint:** `make lint` (Runs `gofumpt` check and `golangci-lint`)
 
-    ```text
-    <short summary>
+### Coding Conventions
 
-    <detailed description if necessary>
-    ```
+* **Style:** Strict adherence to `gofumpt`.
+* **Error Handling:** Use `errors.Join(fmt.Errorf("..."), err)` for wrapping errors.
+* **Logging:** Use `log/slog` for structured logging.
+* **Concurrency:** Prefer channels and `select` for coordination; ensure `context.Context` is propagated.
+* **Testing:** Use table-driven tests for logic and `t.Run()` for subtests.
+  * Use `t.Parallel()` for slow but independent tests that can safely run in parallel.
 
+## Dependencies
+
+* **UI:** `github.com/charmbracelet/bubbletea` (and related libraries like `lipgloss`, `bubbles`)
+* **AI:** `google.golang.org/genai`
+* **Config:** `github.com/joho/godotenv`
