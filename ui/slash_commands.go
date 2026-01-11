@@ -73,6 +73,13 @@ func NewSlashCommandHandler() *SlashCommandHandler {
 					}
 				},
 			},
+			{
+				Name:        "/quit",
+				Description: "Exit the session",
+				Execute: func(m *model, args []string) (tea.Model, tea.Cmd) {
+					return m, tea.Quit
+				},
+			},
 		},
 		Active: false,
 	}
