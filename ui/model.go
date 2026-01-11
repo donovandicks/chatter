@@ -260,7 +260,7 @@ func (m model) recalculateViewportHeight() model {
 
 func (m model) footerView() string {
 	if m.activePermRequest != nil {
-		return "" // Hide footer when modal is active
+		return RenderPermissionInline(*m.activePermRequest, m.width)
 	}
 
 	if m.isLoading {
@@ -324,10 +324,6 @@ func (m model) renderMessages() string {
 func (m model) View() string {
 	if m.err != nil {
 		return fmt.Sprintf("Error: %v\nPress Ctrl+C to quit.", m.err)
-	}
-
-	if m.activePermRequest != nil {
-		return RenderPermissionModal(*m.activePermRequest, m.width, m.height)
 	}
 
 	ui := lipgloss.JoinVertical(lipgloss.Left,

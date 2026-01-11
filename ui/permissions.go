@@ -51,6 +51,10 @@ func (r *UIPermissionRequester) RequestApproval(ctx context.Context, action auth
 // HandlePermissionKeyMsg processes key events for the permission modal.
 // Returns the permission level chosen and a boolean indicating if a choice was made.
 func HandlePermissionKeyMsg(msg tea.KeyMsg) (auth.PermissionLevel, bool) {
+	if msg.Type == tea.KeyCtrlC {
+		return auth.LevelReject, true
+	}
+
 	switch msg.String() {
 	case "y", "Y":
 		return auth.LevelApproveOnce, true
@@ -62,8 +66,8 @@ func HandlePermissionKeyMsg(msg tea.KeyMsg) (auth.PermissionLevel, bool) {
 	return auth.LevelReject, false
 }
 
-// RenderPermissionModal renders the permission request dialog.
-func RenderPermissionModal(req PermissionRequestMsg, width, height int) string {
+// RenderPermissionInline renders the permission request dialog inline.
+func RenderPermissionInline(req PermissionRequestMsg, width int) string {
 	action := req.Action
 	var prompt string
 
@@ -86,6 +90,6 @@ func RenderPermissionModal(req PermissionRequestMsg, width, height int) string {
 		PermHelpStyle.Render(helpText),
 	)
 
-	// Center the dialog on screen
-	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, PermDialogStyle.Render(content))
+	// Render the dialog using the full available width
+	return PermDialogStyle.Copy().Width(width - 2).Render(content)
 }
