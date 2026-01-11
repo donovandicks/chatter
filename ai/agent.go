@@ -170,7 +170,7 @@ func NewMainAgent(ctx context.Context, pm *auth.PermissionManager, pr Permission
 
 	// Initialize registry
 	registry := NewAgentRegistry()
-	
+
 	// Register planner agent
 	registry.Register(AgentConfig{
 		Name:         "planner",
@@ -354,7 +354,7 @@ func (a *Agent) SendMessage(ctx context.Context, prompt string) (string, error) 
 		for _, fc := range functionCalls {
 			tool, ok := a.tools[fc.Name]
 			var resp map[string]any
-			
+
 			a.stats.ToolCalls++
 			toolStart := time.Now()
 

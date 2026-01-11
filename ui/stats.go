@@ -12,37 +12,37 @@ import (
 var (
 	// Styles matching the screenshot
 	headerStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#E0E0E0")). // Light Gray
-		Bold(true).
-		MarginBottom(1)
+			Foreground(lipgloss.Color("#E0E0E0")). // Light Gray
+			Bold(true).
+			MarginBottom(1)
 
 	labelStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#7F9F7F")). // Sage Green/Blue
-		Width(20)
+			Foreground(lipgloss.Color("#7F9F7F")). // Sage Green/Blue
+			Width(20)
 
 	valueStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#A0A0A0")) // Gray
+			Foreground(lipgloss.Color("#A0A0A0")) // Gray
 
 	errorStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FF5F87")) // Pink/Red
+			Foreground(lipgloss.Color("#FF5F87")) // Pink/Red
 
 	successStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#87D787")) // Green
+			Foreground(lipgloss.Color("#87D787")) // Green
 
 	boxStyle = lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#6272A4")). // Purple-ish border
-		Padding(1, 2).
-		MarginTop(1)
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("#6272A4")). // Purple-ish border
+			Padding(1, 2).
+			MarginTop(1)
 
 	titleStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#6272A4")).
-		Bold(true).
-		MarginBottom(1)
+			Foreground(lipgloss.Color("#6272A4")).
+			Bold(true).
+			MarginBottom(1)
 
 	tableHeaderStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#E0E0E0")).
-		Bold(true)
+				Foreground(lipgloss.Color("#E0E0E0")).
+				Bold(true)
 )
 
 // RenderStats formats the session statistics into a styled string.
@@ -155,7 +155,7 @@ func RenderStats(stats ai.SessionStats) string {
 		sb.WriteString(valueStyle.Render(c1 + c2 + c3 + c4))
 		sb.WriteString("\n")
 	}
-	
+
 	// If no model usage (e.g. quit immediately), show a placeholder or nothing
 	if len(stats.ModelUsage) == 0 {
 		sb.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Italic(true).Render("  No models used."))
