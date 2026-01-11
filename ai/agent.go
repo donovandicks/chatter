@@ -39,6 +39,13 @@ type AgentRegistry struct {
 	agents map[string]AgentConfig
 }
 
+// SessionStats holds the usage statistics for the agent's session.
+type SessionStats struct {
+	TotalInputTokens  int
+	TotalOutputTokens int
+	TotalTokens       int
+}
+
 // NewAgentRegistry creates a new, empty agent registry.
 func NewAgentRegistry() *AgentRegistry {
 	return &AgentRegistry{
@@ -68,14 +75,15 @@ func (r *AgentRegistry) List() []string {
 
 // Agent manages the conversation history and interaction with the Gemini AI model.
 type Agent struct {
-	client       *genai.Client
-	model        GeminiModel
-	systemPrompt string
-	tools        map[string]tools.FunctionTool
-	history      []*genai.Content
-	registry     *AgentRegistry
+	client        *genai.Client
+	model         GeminiModel
+	systemPrompt  string
+	tools         map[string]tools.FunctionTool
+	history       []*genai.Content
+	registry      *AgentRegistry
 	permManager   *auth.PermissionManager
 	permRequester PermissionRequester
+	stats         SessionStats
 }
 
 // AgentConfig defines the configuration for an AI agent.
@@ -269,6 +277,12 @@ func (a *Agent) SendMessage(ctx context.Context, prompt string) (string, error) 
 			return "", err
 		}
 
+		if response.UsageMetadata != nil {
+			a.stats.TotalInputTokens += int(response.UsageMetadata.PromptTokenCount)
+			a.stats.TotalOutputTokens += int(response.UsageMetadata.CandidatesTokenCount)
+			a.stats.TotalTokens += int(response.UsageMetadata.TotalTokenCount)
+		}
+
 		if len(response.Candidates) == 0 {
 			return "", errors.New("no candidates returned")
 		}
@@ -335,4 +349,9 @@ func (a *Agent) ClearHistory() {
 // GetPermissionManager returns the agent's permission manager.
 func (a *Agent) GetPermissionManager() *auth.PermissionManager {
 	return a.permManager
+}
+
+// GetStats returns the accumulated usage statistics for the session.
+func (a *Agent) GetStats() SessionStats {
+	return a.stats
 }

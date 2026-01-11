@@ -31,4 +31,10 @@ func main() {
 		fmt.Printf("Alas, there's been an error: %v\n", err)
 		os.Exit(1)
 	}
+
+	stats := agent.GetStats()
+	fmt.Println("\n--- Session Stats ---")
+	fmt.Printf("Total Tokens:  %d\n", stats.TotalTokens)
+	fmt.Printf("Input Tokens:  %d\n", stats.TotalInputTokens)
+	fmt.Printf("Output Tokens: %d\n", stats.TotalOutputTokens)
 }
