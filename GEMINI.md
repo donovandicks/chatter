@@ -38,8 +38,10 @@ The project follows a standard Go project layout:
 
 The project uses a `Makefile` to automate common tasks:
 
+* **Clean:** `make clean` (Removes built binary and coverage files, if any)
 * **Build:** `make build` (Outputs binary to `./chatter`)
 * **Test:** `make test` (Runs all tests)
+* **Coverage:** `make test-cov` (Runs all tests while collecting coverage data, outputs to `./coverage.out`)
 * **Format:** `make fmt` (Applies `gofumpt`)
 * **Lint:** `make lint` (Runs `gofumpt` check and `golangci-lint`)
 
