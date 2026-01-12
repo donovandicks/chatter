@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/donovandicks/chatter/internal/auth"
 
@@ -82,11 +83,28 @@ func RenderPermissionInline(req PermissionRequestMsg, width int) string {
 
 	helpText := fmt.Sprintf("y: Allow Once  •  s: Allow all %s (Session)  •  n: Deny", action.Category())
 
+	var diffView string
+	if action.Diff != "" {
+		lines := strings.Split(action.Diff, "\n")
+		var styledLines []string
+		for _, line := range lines {
+			if strings.HasPrefix(line, "+") {
+				styledLines = append(styledLines, lipgloss.NewStyle().Foreground(lipgloss.Color("42")).Render(line))
+			} else if strings.HasPrefix(line, "-") {
+				styledLines = append(styledLines, lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Render(line))
+			} else {
+				styledLines = append(styledLines, lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(line))
+			}
+		}
+		diffView = lipgloss.JoinVertical(lipgloss.Left, styledLines...)
+	}
+
 	// Assemble content
 	content := lipgloss.JoinVertical(lipgloss.Left,
 		PermTitleStyle.Render("Action Review"),
 		PermLabelStyle.Render(prompt),
 		PermTargetStyle.Render(action.Target),
+		diffView,
 		PermHelpStyle.Render(helpText),
 	)
 

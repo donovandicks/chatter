@@ -7,6 +7,9 @@ import (
 	"path/filepath"
 
 	"github.com/donovandicks/chatter/internal/auth"
+	"github.com/hexops/gotextdiff"
+	"github.com/hexops/gotextdiff/myers"
+	"github.com/hexops/gotextdiff/span"
 	"google.golang.org/genai"
 )
 
@@ -38,10 +41,21 @@ func (t WriteFile) Decl() *genai.FunctionDeclaration {
 // RequestPermission returns the permission action required for this tool.
 func (t WriteFile) RequestPermission(args map[string]any) auth.Action {
 	path, _ := args["path"].(string)
+	content, _ := args["content"].(string)
+
+	var oldContent string
+	if data, err := os.ReadFile(path); err == nil {
+		oldContent = string(data)
+	}
+
+	edits := myers.ComputeEdits(span.URIFromPath(path), oldContent, content)
+	diff := fmt.Sprint(gotextdiff.ToUnified(path, path, oldContent, edits))
+
 	return auth.Action{
 		Type:      "file",
 		Operation: "write",
 		Target:    path,
+		Diff:      diff,
 	}
 }
 

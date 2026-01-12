@@ -52,6 +52,9 @@ func TestAgent_checkPermission_WriteFile(t *testing.T) {
 		Target:    "/tmp/test.txt",
 	}
 
+	// Clear Diff for comparison as it is generated dynamically
+	pr.requestedAction.Diff = ""
+
 	if pr.requestedAction != expectedAction {
 		t.Errorf("Expected request for %v, got %v", expectedAction, pr.requestedAction)
 	}

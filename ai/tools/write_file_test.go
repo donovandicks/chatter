@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -34,5 +35,37 @@ func TestWriteFile_Run(t *testing.T) {
 
 	if string(content) != "Hello, World!" {
 		t.Errorf("Unexpected content: %s", string(content))
+	}
+}
+
+func TestWriteFile_RequestPermission_Diff(t *testing.T) {
+	tempDir := t.TempDir()
+	filePath := filepath.Join(tempDir, "diff_test.txt")
+
+	// Create initial file
+	initialContent := "line 1\nline 2\nline 3"
+	if err := os.WriteFile(filePath, []byte(initialContent), 0o644); err != nil {
+		t.Fatalf("Failed to create file: %v", err)
+	}
+
+	tool := WriteFile{}
+	newContent := "line 1\nline 2 modified\nline 3"
+	args := map[string]any{
+		"path":    filePath,
+		"content": newContent,
+	}
+
+	action := tool.RequestPermission(args)
+
+	if action.Diff == "" {
+		t.Error("Expected diff to be generated, but it was empty")
+	}
+
+	// Simple check for presence of modification
+	if !strings.Contains(action.Diff, "-line 2") {
+		t.Errorf("Expected diff to contain deletion of 'line 2', got: %s", action.Diff)
+	}
+	if !strings.Contains(action.Diff, "+line 2 modified") {
+		t.Errorf("Expected diff to contain addition of 'line 2 modified', got: %s", action.Diff)
 	}
 }

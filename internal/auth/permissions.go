@@ -17,6 +17,7 @@ type Action struct {
 	Type      string // e.g., "file", "shell"
 	Operation string // e.g., "read", "write", "exec"
 	Target    string // e.g., "/path/to/file", "ls -la"
+	Diff      string // Optional: diff of the changes
 }
 
 // Category returns a string representation of the action's category.
