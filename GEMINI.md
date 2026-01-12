@@ -8,7 +8,7 @@ Chatter is an experimental AI coding agent designed to run in the terminal. It l
 * **Key Features:**
   * **TUI:** Rich terminal interface using `charmbracelet/bubbletea`.
   * **AI Backend:** Powered by Google's Gemini models (Flash and Pro) via `google.golang.org/genai`.
-  * **Agent Architecture:** Supports main agent and specialized sub-agents (e.g., "planner") via delegation.
+  * **Architecture:** Supports main agent.
   * **Safety:** Built-in permission system (`internal/auth`) to control file access and tool usage.
 
 ## Architecture
@@ -18,8 +18,8 @@ The project follows a standard Go project layout:
 * **`main.go`**: The application entry point. Initializes the permission manager, the AI agent, and starts the TUI program.
 * **`ai/`**: Contains the core AI logic.
   * `agent.go`: Manages the agent state, conversation history, and tool execution loop.
-  * `tools/`: Definitions for tools the agent can use (e.g., `ReadFile`, `WriteFile`, `DelegateAgent`).
-  * `agent_system.md` / `planner.md`: System prompts defining the agent's persona and capabilities.
+  * `tools/`: Definitions for tools the agent can use (e.g., `ReadFile`, `WriteFile`).
+  * `agent_system.md`: System prompt defining the agent's persona and capabilities.
 * **`ui/`**: The presentation layer.
   * `model.go`: The main Bubble Tea model handling state and view updates.
   * `slash_commands.go`: Handles user input commands (e.g., `/help`, `/quit`).

@@ -19,54 +19,69 @@ type Action struct {
 	Target    string // e.g., "/path/to/file", "ls -la"
 }
 
+// Category returns a string representation of the action's category.
+func (a Action) Category() string {
+	if a.Type == "" && a.Operation == "" {
+		return "unknown"
+	}
+	return a.Type + ":" + a.Operation
+}
+
 // PermissionManager manages the state of granted permissions for the current session.
 type PermissionManager struct {
-	mu                 sync.RWMutex
-	sessionPermissions map[Action]bool
+	mu                sync.RWMutex
+	sessionActions    map[Action]bool
+	sessionCategories map[string]bool
 }
 
 // NewPermissionManager creates a new instance of PermissionManager.
 func NewPermissionManager() *PermissionManager {
 	return &PermissionManager{
-		sessionPermissions: make(map[Action]bool),
+		sessionActions:    make(map[Action]bool),
+		sessionCategories: make(map[string]bool),
 	}
 }
 
-// Check returns true if the action is explicitly approved for the session.
+// Check returns true if the action or its category is explicitly approved for the session.
 func (pm *PermissionManager) Check(a Action) bool {
 	pm.mu.RLock()
 	defer pm.mu.RUnlock()
-	return pm.sessionPermissions[a]
+	return pm.sessionActions[a] || pm.sessionCategories[a.Category()]
 }
 
-// GrantSession approves an action for the remainder of the session.
+// GrantSession approves an action's category for the remainder of the session.
 func (pm *PermissionManager) GrantSession(a Action) {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
-	pm.sessionPermissions[a] = true
+	pm.sessionCategories[a.Category()] = true
 }
 
-// Revoke removes a previously granted session permission.
+// Revoke removes a previously granted session permission for an action and its category.
 func (pm *PermissionManager) Revoke(a Action) {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
-	delete(pm.sessionPermissions, a)
+	delete(pm.sessionActions, a)
+	delete(pm.sessionCategories, a.Category())
 }
 
 // ClearAll revokes all permissions.
 func (pm *PermissionManager) ClearAll() {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
-	pm.sessionPermissions = make(map[Action]bool)
+	pm.sessionActions = make(map[Action]bool)
+	pm.sessionCategories = make(map[string]bool)
 }
 
-// List returns a list of all currently approved session permissions.
-func (pm *PermissionManager) List() []Action {
+// List returns a list of all currently approved session permissions (actions and categories).
+func (pm *PermissionManager) List() []string {
 	pm.mu.RLock()
 	defer pm.mu.RUnlock()
-	actions := make([]Action, 0, len(pm.sessionPermissions))
-	for a := range pm.sessionPermissions {
-		actions = append(actions, a)
+	var list []string
+	for a := range pm.sessionActions {
+		list = append(list, "Action: "+a.Type+":"+a.Operation+" ("+a.Target+")")
 	}
-	return actions
+	for c := range pm.sessionCategories {
+		list = append(list, "Category: "+c)
+	}
+	return list
 }

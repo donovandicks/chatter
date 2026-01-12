@@ -80,7 +80,7 @@ func RenderPermissionInline(req PermissionRequestMsg, width int) string {
 		prompt = fmt.Sprintf("I need to perform '%s' on:", action.Operation)
 	}
 
-	helpText := "y: Allow Once  •  s: Allow Session  •  n: Deny"
+	helpText := fmt.Sprintf("y: Allow Once  •  s: Allow all %s (Session)  •  n: Deny", action.Category())
 
 	// Assemble content
 	content := lipgloss.JoinVertical(lipgloss.Left,

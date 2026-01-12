@@ -62,7 +62,7 @@ func NewSlashCommandHandler() *SlashCommandHandler {
 						var sb strings.Builder
 						sb.WriteString("Active Session Permissions:\n")
 						for _, p := range perms {
-							sb.WriteString(fmt.Sprintf("- [%s] %s: %s\n", p.Type, p.Operation, p.Target))
+							sb.WriteString(fmt.Sprintf("- %s\n", p))
 						}
 						return addSystemMessage(m, sb.String()), nil
 					case "clear":

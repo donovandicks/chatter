@@ -69,6 +69,21 @@ func TestAgent_checkPermission_WriteFile(t *testing.T) {
 	if pr.requestedAction != (auth.Action{}) {
 		t.Errorf("Expected no request (cached in session), but got %v", pr.requestedAction)
 	}
+
+	// 3. Check for DIFFERENT path in same category
+	// Should NOT request approval because category is granted
+	args2 := map[string]any{
+		"path":    "/tmp/another.txt",
+		"content": "bye",
+	}
+	err = agent.checkPermission(ctx, "write_file", args2)
+	if err != nil {
+		t.Fatalf("checkPermission failed: %v", err)
+	}
+
+	if pr.requestedAction != (auth.Action{}) {
+		t.Errorf("Expected no request (category granted), but got %v", pr.requestedAction)
+	}
 }
 
 func TestAgent_checkPermission_ReadFile(t *testing.T) {

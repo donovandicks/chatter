@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"time"
 
 	_ "embed"
@@ -19,9 +20,6 @@ import (
 
 //go:embed agent_system.md
 var agentSystemPrompt string
-
-//go:embed planner.md
-var plannerSystemPrompt string
 
 // PermissionRequester defines the interface for requesting user approval for actions.
 type PermissionRequester interface {
@@ -36,11 +34,6 @@ const (
 	Gemini3Pro   GeminiModel = "gemini-3-pro-preview"
 	Gemini3Flash GeminiModel = "gemini-3-flash-preview"
 )
-
-// AgentRegistry manages the available agent configurations.
-type AgentRegistry struct {
-	agents map[string]AgentConfig
-}
 
 // ModelUsage tracks usage statistics for a specific model.
 type ModelUsage struct {
@@ -63,33 +56,6 @@ type SessionStats struct {
 	ModelUsage        map[string]*ModelUsage
 }
 
-// NewAgentRegistry creates a new, empty agent registry.
-func NewAgentRegistry() *AgentRegistry {
-	return &AgentRegistry{
-		agents: make(map[string]AgentConfig),
-	}
-}
-
-// Register adds an agent configuration to the registry.
-func (r *AgentRegistry) Register(config AgentConfig) {
-	r.agents[config.Name] = config
-}
-
-// Get retrieves an agent configuration by name.
-func (r *AgentRegistry) Get(name string) (AgentConfig, bool) {
-	cfg, ok := r.agents[name]
-	return cfg, ok
-}
-
-// List returns a list of registered agent names.
-func (r *AgentRegistry) List() []string {
-	names := make([]string, 0, len(r.agents))
-	for name := range r.agents {
-		names = append(names, name)
-	}
-	return names
-}
-
 // Agent manages the conversation history and interaction with the Gemini AI model.
 type Agent struct {
 	client        *genai.Client
@@ -97,7 +63,6 @@ type Agent struct {
 	systemPrompt  string
 	tools         map[string]tools.FunctionTool
 	history       []*genai.Content
-	registry      *AgentRegistry
 	permManager   *auth.PermissionManager
 	permRequester PermissionRequester
 	stats         SessionStats
@@ -115,11 +80,17 @@ func loadAgentPrompt() (string, error) {
 	if agentSystemPrompt == "" {
 		return "", errors.New("agent system prompt is empty")
 	}
-	return agentSystemPrompt, nil
+
+	prompt := agentSystemPrompt
+	if data, err := os.ReadFile("AGENTS.md"); err == nil {
+		prompt += "\n\n" + string(data)
+	}
+
+	return prompt, nil
 }
 
 // NewAgent creates a new Agent instance with the provided configuration.
-func NewAgent(ctx context.Context, config *AgentConfig, pm *auth.PermissionManager, pr PermissionRequester, registry *AgentRegistry) (*Agent, error) {
+func NewAgent(ctx context.Context, config *AgentConfig, pm *auth.PermissionManager, pr PermissionRequester) (*Agent, error) {
 	if config == nil {
 		return nil, errors.New("config is required")
 	}
@@ -142,7 +113,6 @@ func NewAgent(ctx context.Context, config *AgentConfig, pm *auth.PermissionManag
 		systemPrompt:  config.SystemPrompt,
 		tools:         make(map[string]tools.FunctionTool),
 		history:       make([]*genai.Content, 0),
-		registry:      registry,
 		permManager:   pm,
 		permRequester: pr,
 		stats: SessionStats{
@@ -160,27 +130,14 @@ func NewAgent(ctx context.Context, config *AgentConfig, pm *auth.PermissionManag
 	return agent, nil
 }
 
-// NewMainAgent creates the primary agent with the default configuration and delegation capabilities.
+// NewMainAgent creates the primary agent with the default configuration.
 func NewMainAgent(ctx context.Context, pm *auth.PermissionManager, pr PermissionRequester) (*Agent, error) {
 	sysPrompt, err := loadAgentPrompt()
 	if err != nil {
 		return nil, err
 	}
 
-	// Initialize registry
-	registry := NewAgentRegistry()
-
-	// Register planner agent
-	registry.Register(AgentConfig{
-		Name:         "planner",
-		Model:        Gemini3Pro,
-		SystemPrompt: plannerSystemPrompt,
-		Tools: []tools.FunctionTool{
-			&tools.ReadFile{},
-		},
-	})
-
-	// Define available tools for the main agent (excluding delegate for now)
+	// Define available tools for the main agent
 	mainTools := []tools.FunctionTool{
 		&tools.ReadFile{},
 		&tools.WriteFile{},
@@ -193,42 +150,7 @@ func NewMainAgent(ctx context.Context, pm *auth.PermissionManager, pr Permission
 		Tools:        mainTools,
 	}
 
-	agent, err := NewAgent(ctx, config, pm, pr, registry)
-	if err != nil {
-		return nil, err
-	}
-
-	delegateTool := &tools.DelegateAgent{
-		AvailableAgents: registry.List(),
-		Delegator:       agent.delegateTask,
-	}
-	agent.tools[delegateTool.Decl().Name] = delegateTool
-
-	return agent, nil
-}
-
-// delegateTask is the callback used by the DelegateAgent tool.
-func (a *Agent) delegateTask(ctx context.Context, agentName string, objective string) (string, error) {
-	if a.registry == nil {
-		return "", errors.New("agent registry not available")
-	}
-
-	cfg, ok := a.registry.Get(agentName)
-	if !ok {
-		return "", fmt.Errorf("agent %q not found", agentName)
-	}
-
-	// Create the sub-agent
-	// Pass the same registry to sub-agents so they can potentially delegate too (if we wanted to allow that)
-	subAgent, err := NewAgent(ctx, &cfg, a.permManager, a.permRequester, a.registry)
-	if err != nil {
-		return "", fmt.Errorf("failed to create sub-agent %q: %w", agentName, err)
-	}
-
-	slog.InfoContext(ctx, "Delegating task", "to_agent", agentName, "objective", objective)
-
-	// Send the objective to the sub-agent
-	return subAgent.SendMessage(ctx, objective)
+	return NewAgent(ctx, config, pm, pr)
 }
 
 func (a *Agent) checkPermission(ctx context.Context, toolName string, args map[string]any) error {
