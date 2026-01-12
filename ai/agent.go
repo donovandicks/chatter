@@ -167,8 +167,10 @@ func (a *Agent) checkPermission(ctx context.Context, toolName string, args map[s
 	// Get the required action from the tool itself
 	action := tool.RequestPermission(args)
 
-	// Check existing permissions
-	if a.permManager.Check(action) {
+	// Check existing permissions.
+	// We always call RequestApproval if there is a diff to ensure it's displayed to the user
+	// (either in the chat log or as a blocking request).
+	if action.Diff == "" && a.permManager.Check(action) {
 		return nil
 	}
 

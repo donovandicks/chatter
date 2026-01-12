@@ -13,19 +13,22 @@ import (
 
 // PermissionRequestMsg is sent to the UI when the agent needs approval.
 type PermissionRequestMsg struct {
-	Action       auth.Action
-	ResponseChan chan auth.PermissionLevel
+	Action        auth.Action
+	ResponseChan  chan auth.PermissionLevel
+	IsPreApproved bool
 }
 
 // UIPermissionRequester implements ai.PermissionRequester using a channel to signal the UI.
 type UIPermissionRequester struct {
 	RequestChan chan PermissionRequestMsg
+	permManager *auth.PermissionManager
 }
 
 // NewUIPermissionRequester creates a new requester.
-func NewUIPermissionRequester() *UIPermissionRequester {
+func NewUIPermissionRequester(pm *auth.PermissionManager) *UIPermissionRequester {
 	return &UIPermissionRequester{
 		RequestChan: make(chan PermissionRequestMsg),
+		permManager: pm,
 	}
 }
 
@@ -34,8 +37,9 @@ func (r *UIPermissionRequester) RequestApproval(ctx context.Context, action auth
 	respChan := make(chan auth.PermissionLevel)
 	select {
 	case r.RequestChan <- PermissionRequestMsg{
-		Action:       action,
-		ResponseChan: respChan,
+		Action:        action,
+		ResponseChan:  respChan,
+		IsPreApproved: r.permManager != nil && r.permManager.Check(action),
 	}:
 	case <-ctx.Done():
 		return auth.LevelReject, ctx.Err()
@@ -67,6 +71,25 @@ func HandlePermissionKeyMsg(msg tea.KeyMsg) (auth.PermissionLevel, bool) {
 	return auth.LevelReject, false
 }
 
+// StyleDiff applies color coding to a unified diff string.
+func StyleDiff(diff string) string {
+	if diff == "" {
+		return ""
+	}
+	lines := strings.Split(diff, "\n")
+	var styledLines []string
+	for _, line := range lines {
+		if strings.HasPrefix(line, "+") {
+			styledLines = append(styledLines, lipgloss.NewStyle().Foreground(lipgloss.Color("42")).Render(line))
+		} else if strings.HasPrefix(line, "-") {
+			styledLines = append(styledLines, lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Render(line))
+		} else {
+			styledLines = append(styledLines, lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(line))
+		}
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, styledLines...)
+}
+
 // RenderPermissionInline renders the permission request dialog inline.
 func RenderPermissionInline(req PermissionRequestMsg, width int) string {
 	action := req.Action
@@ -83,21 +106,7 @@ func RenderPermissionInline(req PermissionRequestMsg, width int) string {
 
 	helpText := fmt.Sprintf("y: Allow Once  •  s: Allow all %s (Session)  •  n: Deny", action.Category())
 
-	var diffView string
-	if action.Diff != "" {
-		lines := strings.Split(action.Diff, "\n")
-		var styledLines []string
-		for _, line := range lines {
-			if strings.HasPrefix(line, "+") {
-				styledLines = append(styledLines, lipgloss.NewStyle().Foreground(lipgloss.Color("42")).Render(line))
-			} else if strings.HasPrefix(line, "-") {
-				styledLines = append(styledLines, lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Render(line))
-			} else {
-				styledLines = append(styledLines, lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(line))
-			}
-		}
-		diffView = lipgloss.JoinVertical(lipgloss.Left, styledLines...)
-	}
+	diffView := StyleDiff(action.Diff)
 
 	// Assemble content
 	content := lipgloss.JoinVertical(lipgloss.Left,

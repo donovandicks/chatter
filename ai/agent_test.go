@@ -60,7 +60,7 @@ func TestAgent_checkPermission_WriteFile(t *testing.T) {
 	}
 
 	// 2. Grant Session Permission and check again
-	// Should NOT request approval
+	// Should STILL request approval because Diff is present (to show the user)
 	pm.GrantSession(expectedAction)
 	pr.requestedAction = auth.Action{} // Reset
 
@@ -69,23 +69,27 @@ func TestAgent_checkPermission_WriteFile(t *testing.T) {
 		t.Fatalf("checkPermission failed: %v", err)
 	}
 
-	if pr.requestedAction != (auth.Action{}) {
-		t.Errorf("Expected no request (cached in session), but got %v", pr.requestedAction)
+	// We expect the request to still happen because of the Diff
+	if pr.requestedAction.Diff == "" {
+		t.Error("Expected request with diff even after session grant, but got none")
 	}
 
 	// 3. Check for DIFFERENT path in same category
-	// Should NOT request approval because category is granted
+	// Should STILL request approval because of Diff
 	args2 := map[string]any{
 		"path":    "/tmp/another.txt",
 		"content": "bye",
 	}
+	// Reset requestedAction
+	pr.requestedAction = auth.Action{}
+
 	err = agent.checkPermission(ctx, "write_file", args2)
 	if err != nil {
 		t.Fatalf("checkPermission failed: %v", err)
 	}
 
-	if pr.requestedAction != (auth.Action{}) {
-		t.Errorf("Expected no request (category granted), but got %v", pr.requestedAction)
+	if pr.requestedAction.Diff == "" {
+		t.Error("Expected request with diff for new file even after session grant")
 	}
 }
 
@@ -108,6 +112,7 @@ func TestAgent_checkPermission_ReadFile(t *testing.T) {
 		"path": "/tmp/read.txt",
 	}
 
+	// 1. First check
 	err := agent.checkPermission(ctx, "read_file", args)
 	if err != nil {
 		t.Fatalf("checkPermission failed: %v", err)
@@ -121,5 +126,19 @@ func TestAgent_checkPermission_ReadFile(t *testing.T) {
 
 	if pr.requestedAction != expectedAction {
 		t.Errorf("Expected request for %v, got %v", expectedAction, pr.requestedAction)
+	}
+
+	// 2. Grant Session and check again
+	// Should NOT request approval because ReadFile has no diff
+	pm.GrantSession(expectedAction)
+	pr.requestedAction = auth.Action{} // Reset
+
+	err = agent.checkPermission(ctx, "read_file", args)
+	if err != nil {
+		t.Fatalf("checkPermission failed: %v", err)
+	}
+
+	if pr.requestedAction != (auth.Action{}) {
+		t.Errorf("Expected no request (cached in session), but got %v", pr.requestedAction)
 	}
 }

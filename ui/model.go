@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/donovandicks/chatter/ai"
+	"github.com/donovandicks/chatter/internal/auth"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/spinner"
@@ -134,6 +135,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg, ok := msg.(tea.KeyMsg); ok {
 			response, responded := HandlePermissionKeyMsg(msg)
 			if responded {
+				if (response == auth.LevelApproveOnce || response == auth.LevelApproveSession) && m.activePermRequest.Action.Diff != "" {
+					m.messages = append(m.messages, chatMessage{
+						Sender:  "System",
+						Content: fmt.Sprintf("Approved %s on %s:\n%s", m.activePermRequest.Action.Operation, m.activePermRequest.Action.Target, StyleDiff(m.activePermRequest.Action.Diff)),
+						IsUser:  false,
+					})
+					m.viewport.SetContent(m.renderMessages())
+					m.viewport.GotoBottom()
+					m = m.recalculateViewportHeight()
+				}
 				m.activePermRequest.ResponseChan <- response
 				m.activePermRequest = nil
 				// Resume listening for requests
@@ -241,6 +252,21 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m = m.recalculateViewportHeight()
 		return m, nil
 	case PermissionRequestMsg:
+		if msg.IsPreApproved {
+			// Always display write diffs in the chat, even if pre-approved
+			if msg.Action.Diff != "" {
+				m.messages = append(m.messages, chatMessage{
+					Sender:  "System",
+					Content: fmt.Sprintf("Auto-approved %s on %s:\n%s", msg.Action.Operation, msg.Action.Target, StyleDiff(msg.Action.Diff)),
+					IsUser:  false,
+				})
+				m.viewport.SetContent(m.renderMessages())
+				m.viewport.GotoBottom()
+				m = m.recalculateViewportHeight()
+			}
+			msg.ResponseChan <- auth.LevelApproveOnce
+			return m, m.waitForPermissionRequests(m.permRequester.RequestChan)
+		}
 		m.activePermRequest = &msg
 		return m, nil
 	}

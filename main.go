@@ -19,7 +19,7 @@ func main() {
 
 	// Initialize permission system
 	permManager := auth.NewPermissionManager()
-	permRequester := ui.NewUIPermissionRequester()
+	permRequester := ui.NewUIPermissionRequester(permManager)
 
 	agent, err := ai.NewMainAgent(ctx, permManager, permRequester)
 	if err != nil {
