@@ -10,6 +10,7 @@ func TestAutocomplete_Update(t *testing.T) {
 	ac := &Autocomplete{
 		allFiles: []string{"main.go", "go.mod", "README.md"},
 		Active:   false,
+		Lister:   nil,
 	}
 
 	// 1. Trigger with "@"

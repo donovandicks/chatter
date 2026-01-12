@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"os"
 	"testing"
 
@@ -49,7 +50,7 @@ func TestReadFile_Run(t *testing.T) {
 		"path": tmpfile.Name(),
 	}
 
-	result, err := tool.Run(args)
+	result, err := tool.Run(context.Background(), args)
 	if err != nil {
 		t.Fatalf("Run failed: %v", err)
 	}

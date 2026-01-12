@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -40,7 +41,7 @@ func (t ReadFile) RequestPermission(args map[string]any) auth.Action {
 }
 
 // Run executes the read_file tool with the provided arguments.
-func (t ReadFile) Run(args map[string]any) (string, error) {
+func (t ReadFile) Run(ctx context.Context, args map[string]any) (string, error) {
 	path, ok := args["path"].(string)
 	if !ok {
 		return "", fmt.Errorf("invalid argument: path must be a string")

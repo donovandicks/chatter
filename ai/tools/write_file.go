@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -45,7 +46,7 @@ func (t WriteFile) RequestPermission(args map[string]any) auth.Action {
 }
 
 // Run executes the write_file tool.
-func (t WriteFile) Run(args map[string]any) (string, error) {
+func (t WriteFile) Run(ctx context.Context, args map[string]any) (string, error) {
 	path, ok := args["path"].(string)
 	if !ok {
 		return "", fmt.Errorf("invalid argument: path must be a string")

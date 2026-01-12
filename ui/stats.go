@@ -35,11 +35,6 @@ var (
 			Padding(1, 2).
 			MarginTop(1)
 
-	titleStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#6272A4")).
-			Bold(true).
-			MarginBottom(1)
-
 	tableHeaderStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color("#E0E0E0")).
 				Bold(true)

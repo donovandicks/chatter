@@ -91,5 +91,5 @@ func RenderPermissionInline(req PermissionRequestMsg, width int) string {
 	)
 
 	// Render the dialog using the full available width
-	return PermDialogStyle.Copy().Width(width - 2).Render(content)
+	return PermDialogStyle.Width(width - 2).Render(content)
 }

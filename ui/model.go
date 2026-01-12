@@ -191,7 +191,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if errors.Is(msg, context.Canceled) || strings.Contains(msg.Error(), "context canceled") {
 			return m, nil
 		}
-		m.err = msg
+		m.isLoading = false
+		m.cancelRequest = nil
+		m.messages = append(m.messages, chatMessage{
+			Sender:  "Error",
+			Content: msg.Error(),
+			IsUser:  false,
+		})
+		m.viewport.SetContent(m.renderMessages())
+		m.viewport.GotoBottom()
+		m = m.recalculateViewportHeight()
 		return m, nil
 	case agentResponseMsg:
 		m.isLoading = false
@@ -322,10 +331,6 @@ func (m model) renderMessages() string {
 }
 
 func (m model) View() string {
-	if m.err != nil {
-		return fmt.Sprintf("Error: %v\nPress Ctrl+C to quit.", m.err)
-	}
-
 	ui := lipgloss.JoinVertical(lipgloss.Left,
 		m.viewport.View(),
 		m.footerView(),

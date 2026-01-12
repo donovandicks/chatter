@@ -2,6 +2,8 @@
 package tools
 
 import (
+	"context"
+
 	"github.com/donovandicks/chatter/internal/auth"
 	"google.golang.org/genai"
 )
@@ -9,6 +11,6 @@ import (
 // FunctionTool defines the interface for tools that the AI agent can execute.
 type FunctionTool interface {
 	Decl() *genai.FunctionDeclaration
-	Run(map[string]any) (string, error)
+	Run(context.Context, map[string]any) (string, error)
 	RequestPermission(map[string]any) auth.Action
 }

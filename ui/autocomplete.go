@@ -14,6 +14,7 @@ type Autocomplete struct {
 	suggestions   []string
 	suggestionIdx int
 	Active        bool
+	Lister        func(string) ([]string, error)
 }
 
 // NewAutocomplete creates a new Autocomplete instance and initializes the file list.
@@ -22,6 +23,7 @@ func NewAutocomplete() *Autocomplete {
 	return &Autocomplete{
 		allFiles: files,
 		Active:   false,
+		Lister:   fsutil.ListFiles,
 	}
 }
 
@@ -69,6 +71,13 @@ func (a *Autocomplete) Update(msg tea.Msg, inputVal string, cursor int) (bool, s
 	lastAt := strings.LastIndex(inputVal[:cursor], "@")
 
 	if lastAt != -1 {
+		// Refresh file list to pick up any newly created files
+		if a.Lister != nil {
+			if files, err := a.Lister("."); err == nil {
+				a.allFiles = files
+			}
+		}
+
 		// potential mention, check if there are spaces between @ and cursor
 		query := inputVal[lastAt+1 : cursor]
 		if !strings.Contains(query, " ") {

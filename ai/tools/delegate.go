@@ -52,7 +52,7 @@ func (t *DelegateAgent) RequestPermission(args map[string]any) auth.Action {
 }
 
 // Run executes the delegation.
-func (t *DelegateAgent) Run(args map[string]any) (string, error) {
+func (t *DelegateAgent) Run(ctx context.Context, args map[string]any) (string, error) {
 	agentName, ok := args["agent_name"].(string)
 	if !ok {
 		return "", fmt.Errorf("invalid argument: agent_name must be a string")
@@ -67,5 +67,5 @@ func (t *DelegateAgent) Run(args map[string]any) (string, error) {
 		return "", fmt.Errorf("delegator function is not set")
 	}
 
-	return t.Delegator(context.Background(), agentName, objective)
+	return t.Delegator(ctx, agentName, objective)
 }

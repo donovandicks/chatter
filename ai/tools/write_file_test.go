@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -16,7 +17,7 @@ func TestWriteFile_Run(t *testing.T) {
 		"content": "Hello, World!",
 	}
 
-	result, err := tool.Run(args)
+	result, err := tool.Run(context.Background(), args)
 	if err != nil {
 		t.Fatalf("WriteFile.Run() failed: %v", err)
 	}

@@ -132,8 +132,7 @@ func NewAgent(ctx context.Context, config *AgentConfig, pm *auth.PermissionManag
 	// Generate a random session ID
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {
-		// Fallback if random fails, though unlikely
-		b = []byte("fallbacksession")
+		return nil, fmt.Errorf("failed to generate session ID: %w", err)
 	}
 	sessionID := hex.EncodeToString(b)
 
@@ -367,7 +366,7 @@ func (a *Agent) SendMessage(ctx context.Context, prompt string) (string, error) 
 					resp = map[string]any{"error": fmt.Sprintf("permission denied: %v", err)}
 					a.stats.ToolErrors++
 				} else {
-					res, err := tool.Run(fc.Args)
+					res, err := tool.Run(ctx, fc.Args)
 					if err != nil {
 						resp = map[string]any{"error": err.Error()}
 						a.stats.ToolErrors++
