@@ -9,6 +9,7 @@ import (
 
 	"github.com/donovandicks/chatter/ai"
 
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -63,6 +64,30 @@ func NewModel(agent *ai.Agent, permRequester *UIPermissionRequester) tea.Model {
 
 	vp := viewport.New(30, 5)
 	vp.SetContent(welcomeMsg.Content)
+	vp.KeyMap = viewport.KeyMap{
+		PageDown: key.NewBinding(
+			key.WithKeys("pgdown"),
+			key.WithHelp("pgdn", "page down"),
+		),
+		PageUp: key.NewBinding(
+			key.WithKeys("pgup"),
+			key.WithHelp("pgup", "page up"),
+		),
+		HalfPageUp: key.NewBinding(
+			key.WithDisabled(),
+		),
+		HalfPageDown: key.NewBinding(
+			key.WithDisabled(),
+		),
+		Up: key.NewBinding(
+			key.WithKeys("up"),
+			key.WithHelp("↑", "up"),
+		),
+		Down: key.NewBinding(
+			key.WithKeys("down"),
+			key.WithHelp("↓", "down"),
+		),
+	}
 
 	s := spinner.New()
 	s.Spinner = spinner.Dot
@@ -86,6 +111,7 @@ func NewModel(agent *ai.Agent, permRequester *UIPermissionRequester) tea.Model {
 func (m model) Init() tea.Cmd {
 	return tea.Batch(
 		textarea.Blink,
+		tea.EnableMouseCellMotion,
 		m.waitForPermissionRequests(m.permRequester.RequestChan),
 	)
 }
