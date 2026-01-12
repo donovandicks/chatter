@@ -43,8 +43,8 @@ prompt: |
 
 ## Deep Introspection
 
-Expose conversation history, usage statistics, and all other information to the user
-via slash commands and other tooling.
+Expose conversation history, usage statistics, and all other information to the
+user via slash commands and other tooling.
 
 Particularly interesting would be:
 
@@ -70,3 +70,15 @@ Display intended edit diffs to the user.
 - Semantic diff could be interesting
   - <https://github.com/Wilfred/difftastic>
   - <https://github.com/afnanenayet/diffsitter>
+
+## Modal Interactions
+
+Allow the user to select a "mode" for the interaction.
+
+- Planner -> no code changes, only planning.
+- Coding -> only implementation.
+- Dynamic -> agent decides whether to plan/document/implement.
+
+## Message Queueing
+
+Allow the user to queue up messages to be included in the next interaction.
