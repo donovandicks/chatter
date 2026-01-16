@@ -29,7 +29,7 @@ type model struct {
 	viewport          viewport.Model
 	textarea          textarea.Model
 	messages          []chatMessage
-	agent             *ai.Agent
+	session           *ai.Session
 	spinner           spinner.Model
 	isLoading         bool
 	err               error
@@ -47,8 +47,8 @@ type (
 	errMsg           error
 )
 
-// NewModel initializes the main application model with the given AI agent.
-func NewModel(agent *ai.Agent, permRequester *UIPermissionRequester) tea.Model {
+// NewModel initializes the main application model with the given AI session.
+func NewModel(session *ai.Session, permRequester *UIPermissionRequester) tea.Model {
 	ta := textarea.New()
 	ta.Placeholder = "Type a message..."
 	ta.Focus()
@@ -98,7 +98,7 @@ func NewModel(agent *ai.Agent, permRequester *UIPermissionRequester) tea.Model {
 		textarea:      ta,
 		viewport:      vp,
 		messages:      []chatMessage{welcomeMsg},
-		agent:         agent,
+		session:       session,
 		spinner:       s,
 		isLoading:     false,
 		err:           nil,
@@ -201,10 +201,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.cancelRequest = nil
 				m.isLoading = false
 				m.messages = append(m.messages, chatMessage{
-					Sender:  "System",
-					Content: "Request cancelled.",
-					IsUser:  false,
-				})
+						Sender:  "System",
+						Content: "Request cancelled.",
+						IsUser:  false,
+					})
 				m.viewport.SetContent(m.renderMessages())
 				m.viewport.GotoBottom()
 				m = m.recalculateViewportHeight()
@@ -256,10 +256,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Always display write diffs in the chat, even if pre-approved
 			if msg.Action.Diff != "" {
 				m.messages = append(m.messages, chatMessage{
-					Sender:  "System",
-					Content: fmt.Sprintf("Auto-approved %s on %s:\n%s", msg.Action.Operation, msg.Action.Target, StyleDiff(msg.Action.Diff)),
-					IsUser:  false,
-				})
+						Sender:  "System",
+						Content: fmt.Sprintf("Auto-approved %s on %s:\n%s", msg.Action.Operation, msg.Action.Target, StyleDiff(msg.Action.Diff)),
+						IsUser:  false,
+					})
 				m.viewport.SetContent(m.renderMessages())
 				m.viewport.GotoBottom()
 				m = m.recalculateViewportHeight()
@@ -367,7 +367,7 @@ func (m model) handleSendMessage() (tea.Model, tea.Cmd) {
 	m = m.recalculateViewportHeight()
 
 	// Keep the spinner spinning and send the request
-	return m, tea.Batch(m.spinner.Tick, sendToAgent(ctx, m.agent, userText))
+	return m, tea.Batch(m.spinner.Tick, sendToAgent(ctx, m.session, userText))
 }
 
 func (m model) renderMessages() string {
@@ -391,9 +391,9 @@ func (m model) View() string {
 	return lipgloss.PlaceVertical(m.height, lipgloss.Bottom, ui)
 }
 
-func sendToAgent(ctx context.Context, agent *ai.Agent, prompt string) tea.Cmd {
+func sendToAgent(ctx context.Context, session *ai.Session, prompt string) tea.Cmd {
 	return func() tea.Msg {
-		resp, err := agent.SendMessage(ctx, prompt)
+		resp, err := session.Chat(ctx, prompt)
 		if err != nil {
 			return errMsg(err)
 		}

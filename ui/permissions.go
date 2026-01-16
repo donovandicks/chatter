@@ -21,14 +21,14 @@ type PermissionRequestMsg struct {
 // UIPermissionRequester implements ai.PermissionRequester using a channel to signal the UI.
 type UIPermissionRequester struct {
 	RequestChan chan PermissionRequestMsg
-	permManager *auth.PermissionManager
+	PermManager *auth.PermissionManager
 }
 
 // NewUIPermissionRequester creates a new requester.
 func NewUIPermissionRequester(pm *auth.PermissionManager) *UIPermissionRequester {
 	return &UIPermissionRequester{
 		RequestChan: make(chan PermissionRequestMsg),
-		permManager: pm,
+		PermManager: pm,
 	}
 }
 
@@ -39,7 +39,7 @@ func (r *UIPermissionRequester) RequestApproval(ctx context.Context, action auth
 	case r.RequestChan <- PermissionRequestMsg{
 		Action:        action,
 		ResponseChan:  respChan,
-		IsPreApproved: r.permManager != nil && r.permManager.Check(action),
+		IsPreApproved: r.PermManager != nil && r.PermManager.Check(action),
 	}:
 	case <-ctx.Done():
 		return auth.LevelReject, ctx.Err()

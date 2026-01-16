@@ -35,8 +35,8 @@ func NewSlashCommandHandler() *SlashCommandHandler {
 						Content: "Conversation cleared.",
 						IsUser:  false,
 					}}
-					m.agent.ClearHistory()
-					m.viewport.SetContent(m.renderMessages())
+				m.session.ClearHistory()
+				m.viewport.SetContent(m.renderMessages())
 					return m, nil
 				},
 			},
@@ -48,7 +48,7 @@ func NewSlashCommandHandler() *SlashCommandHandler {
 						return addSystemMessage(m, "Usage: /perms <list|clear>"), nil
 					}
 
-					pm := m.agent.GetPermissionManager()
+					pm := m.permRequester.PermManager
 					if pm == nil {
 						return addSystemMessage(m, "Error: Permission manager not available."), nil
 					}
@@ -77,7 +77,7 @@ func NewSlashCommandHandler() *SlashCommandHandler {
 				Name:        "/stats",
 				Description: "Show session statistics",
 				Execute: func(m *model, args []string) (tea.Model, tea.Cmd) {
-					stats := m.agent.GetStats()
+					stats := m.session.Stats
 					// Pass false to suppress the "Goodbye" message
 					output := RenderStats(stats, false)
 					return addSystemMessage(m, output), nil
@@ -107,7 +107,7 @@ func addSystemMessage(m *model, content string) *model {
 
 // Update checks for slash command input, manages suggestions, and handles selection keys.
 func (s *SlashCommandHandler) Update(msg tea.Msg, inputVal string) (bool, string, bool) {
-	// Only active if input starts with /
+	// Only active if input starts with "/"
 	if !strings.HasPrefix(inputVal, "/") {
 		s.Active = false
 		return false, "", false
