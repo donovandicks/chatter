@@ -1,0 +1,34 @@
+{
+  "general": {
+    "previewFeatures": true
+  },
+  "ui": {
+    "showStatusInTitle": true,
+    "showHomeDirectoryWarning": true,
+    "dynamicWindowTitle": true,
+    "hideTips": true,
+    "hideBanner": true,
+    "hideContextSummary": false,
+    "showMemoryUsage": true,
+    "showModelInfoInChat": true,
+    "footer": {
+      "hideContextPercentage": false
+    }
+  },
+  "context": {
+    "fileName": [
+      "GEMINI.md",
+      "AGENTS.md"
+    ]
+  },
+  "security": {
+    "disableYoloMode": true,
+    "blockGitExtensions": true
+  },
+  "privacy": {
+    "usageStatisticsEnabled": false
+  },
+  "telemetry": {
+    "enabled": false
+  }
+}
