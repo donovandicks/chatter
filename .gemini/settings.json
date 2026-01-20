@@ -7,7 +7,7 @@
     "showHomeDirectoryWarning": true,
     "dynamicWindowTitle": true,
     "hideTips": true,
-    "hideBanner": true,
+    "hideBanner": false,
     "hideContextSummary": false,
     "showMemoryUsage": true,
     "showModelInfoInChat": true,
