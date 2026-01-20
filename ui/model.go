@@ -169,6 +169,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 	} else {
+		m.slashCommands.Active = false // Deactivate if slash is removed
 		// Only check autocomplete if not doing slash command
 		cursorIdx := len(m.textarea.Value())
 		handled, newVal, _ := m.autocomplete.Update(msg, m.textarea.Value(), cursorIdx)

@@ -29,7 +29,7 @@ func TestSlashCommandHandler_Update(t *testing.T) {
 	}
 
 	// 3. Select
-	// KeyDown
+	// KeyDown (moves to /context)
 	sh.Update(tea.KeyMsg{Type: tea.KeyDown}, "/c")
 	// KeyEnter
 	handled, cmdName, execute := sh.Update(tea.KeyMsg{Type: tea.KeyEnter}, "/c")
@@ -37,8 +37,8 @@ func TestSlashCommandHandler_Update(t *testing.T) {
 	if !handled {
 		t.Error("Expected Enter to be handled")
 	}
-	if cmdName != "/clear" {
-		t.Errorf("Expected /clear, got %s", cmdName)
+	if cmdName != "/context" {
+		t.Errorf("Expected /context, got %s", cmdName)
 	}
 	if !execute {
 		t.Error("Expected execute to be true")
@@ -53,5 +53,19 @@ func TestSlashCommandHandler_Update(t *testing.T) {
 	handled, _, _ = sh.Update(tea.KeyMsg{Type: tea.KeyEnter, Alt: true}, "/c")
 	if handled {
 		t.Error("Alt+Enter should NOT be handled by slash commands")
+	}
+
+	// 5. Execute with arguments
+	// If the user typed the full command + args, we should return the full input
+	input := "/clear all"
+	handled, res, exec := sh.Update(tea.KeyMsg{Type: tea.KeyEnter}, input)
+	if !handled {
+		t.Error("Expected Enter to be handled for input with args")
+	}
+	if res != "/clear all" {
+		t.Errorf("Expected result to be '/clear all', got '%s'", res)
+	}
+	if !exec {
+		t.Error("Expected execute=true")
 	}
 }
