@@ -1,15 +1,8 @@
 # Chatter
 
-Chatter is an experimental AI coding agent designed to run in the terminal. It leverages the Google GenAI SDK and a TUI (Text User Interface) built with Bubble Tea to provide an interactive coding assistant.
-
-## Project Overview
-
-* **Goal:** To create a capable, CLI-based AI agent that can understand codebase context, plan tasks, and execute file operations safely.
-* **Key Features:**
-  * **TUI:** Rich terminal interface using `charmbracelet/bubbletea`.
-  * **AI Backend:** Powered by Google's Gemini models (Flash and Pro) via `google.golang.org/genai`.
-  * **Architecture:** Supports main agent.
-  * **Safety:** Built-in permission system (`internal/auth`) to control file access and tool usage.
+Chatter is an experimental AI coding agent designed to run in the terminal. It
+leverages the Google GenAI SDK and a TUI (Text User Interface) built with
+Bubble Tea to provide an interactive coding assistant.
 
 ## Architecture
 
@@ -53,9 +46,3 @@ The project uses a `Makefile` to automate common tasks:
 * **Concurrency:** Prefer channels and `select` for coordination; ensure `context.Context` is propagated.
 * **Testing:** Use table-driven tests for logic and `t.Run()` for subtests.
   * Use `t.Parallel()` for slow but independent tests that can safely run in parallel.
-
-## Dependencies
-
-* **UI:** `github.com/charmbracelet/bubbletea` (and related libraries like `lipgloss`, `bubbles`)
-* **AI:** `google.golang.org/genai`
-* **Config:** `github.com/joho/godotenv`
