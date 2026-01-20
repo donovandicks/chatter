@@ -52,8 +52,8 @@ func (a *Autocomplete) Update(msg tea.Msg, inputVal string, cursor int) (bool, s
 					// Find the start of the current @mention
 					start := strings.LastIndex(inputVal[:cursor], "@")
 					if start != -1 {
-						newValue := inputVal[:start] + selected + " " + inputVal[cursor:]
-						newCursor := start + len(selected) + 1
+						newValue := inputVal[:start] + "@" + selected + " " + inputVal[cursor:]
+						newCursor := start + len(selected) + 2 // +2 for "@" and space
 						a.Active = false
 						return true, newValue, newCursor
 					}

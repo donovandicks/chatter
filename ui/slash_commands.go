@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -35,9 +36,50 @@ func NewSlashCommandHandler() *SlashCommandHandler {
 						Content: "Conversation cleared.",
 						IsUser:  false,
 					}}
-				m.session.ClearHistory()
-				m.viewport.SetContent(m.renderMessages())
+					m.session.ClearHistory()
+					m.viewport.SetContent(m.renderMessages())
 					return m, nil
+				},
+			},
+			{
+				Name:        "/context",
+				Description: "Manage context (files:list, files:update)",
+				Execute: func(m *model, args []string) (tea.Model, tea.Cmd) {
+					if len(args) == 0 {
+						return addSystemMessage(m, "Usage: /context <files:list|files:update> [args]"), nil
+					}
+
+					switch args[0] {
+					case "files:list":
+						files := m.session.ListReadFiles()
+						if len(files) == 0 {
+							return addSystemMessage(m, "No files in context."), nil
+						}
+						var sb strings.Builder
+						sb.WriteString("Files in Context:\n")
+						for _, f := range files {
+							sb.WriteString(fmt.Sprintf("- %s\n", f))
+						}
+						return addSystemMessage(m, sb.String()), nil
+					case "files:update":
+						if len(args) < 2 {
+							return addSystemMessage(m, "Usage: /context files:update <path>"), nil
+						}
+						path := args[1]
+						// We need a context for the update operation
+						// Since Execute is synchronous here, we use Background or a timeout
+						// ideally we should do this in a Cmd, but the session update is quick if just reading file
+						// However, file I/O should be a Cmd.
+						// For simplicity in this CLI structure, we'll do it synchronously or wrap in Cmd if needed.
+						// Given the Session method uses context, let's use Background.
+						err := m.session.UpdateFileContext(context.Background(), path)
+						if err != nil {
+							return addSystemMessage(m, fmt.Sprintf("Error updating file context: %v", err)), nil
+						}
+						return addSystemMessage(m, fmt.Sprintf("Context updated for file: %s", path)), nil
+					default:
+						return addSystemMessage(m, "Unknown subcommand. Usage: /context <files:list|files:update>"), nil
+					}
 				},
 			},
 			{
@@ -160,6 +202,13 @@ func (s *SlashCommandHandler) Update(msg tea.Msg, inputVal string) (bool, string
 				if len(s.suggestions) > 0 {
 					selected := s.suggestions[s.suggestionIdx]
 					s.Active = false
+
+					// If the input already contains the full command name, preserve the input (including args).
+					parts := strings.Fields(inputVal)
+					if len(parts) > 0 && parts[0] == selected.Name {
+						return true, inputVal, true
+					}
+
 					return true, selected.Name, true
 				}
 			case tea.KeyEsc:

@@ -41,12 +41,13 @@ func TestAutocomplete_Update(t *testing.T) {
 	if !handled {
 		t.Error("Expected Enter to be handled")
 	}
-	expectedVal := "Hello main.go " // adds space
+		// Expect "Hello @main.go " (space added, @ preserved)
+	expectedVal := "Hello @main.go "
 	if newVal != expectedVal {
 		t.Errorf("Expected %q, got %q", expectedVal, newVal)
 	}
-	if newCursor != len(expectedVal) {
-		t.Errorf("Expected cursor at %d, got %d", len(expectedVal), newCursor)
+	if newCursor != 15 {
+		t.Errorf("Expected cursor at 15, got %d", newCursor)
 	}
 	if ac.Active {
 		t.Error("Should not be active after selection")

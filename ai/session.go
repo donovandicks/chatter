@@ -5,10 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
+	"regexp"
 	"time"
 
 	"google.golang.org/genai"
 )
+
+var atFileRegex = regexp.MustCompile(`@(\S+)`)
 
 // Session manages the state of a conversation.
 type Session struct {
@@ -17,6 +21,7 @@ type Session struct {
 	History        []*genai.Content
 	Stats          SessionStats
 	ToolMiddleware ToolMiddleware
+	ReadFiles      map[string]*genai.Content
 }
 
 // NewSession creates a new session for the given agent.
@@ -31,6 +36,7 @@ func NewSession(agent *Agent, id string) *Session {
 			StartTime:  time.Now(),
 			ModelUsage: make(map[string]*ModelUsage),
 		},
+		ReadFiles: make(map[string]*genai.Content),
 	}
 }
 
@@ -38,6 +44,9 @@ func NewSession(agent *Agent, id string) *Session {
 func (s *Session) Chat(ctx context.Context, prompt string) (string, error) {
 	// Add user message to history
 	s.History = append(s.History, genai.NewContentFromText(prompt, genai.RoleUser))
+
+	// Inject file content referenced by @mentions
+	s.handleFileMentions(prompt)
 
 	// Prepare tools
 	var funcDecls []*genai.FunctionDeclaration
@@ -98,6 +107,56 @@ func (s *Session) Chat(ctx context.Context, prompt string) (string, error) {
 				// or just log it. handleToolCall adds the response to history.
 			}
 		}
+	}
+}
+
+func (s *Session) handleFileMentions(prompt string) {
+	matches := atFileRegex.FindAllStringSubmatch(prompt, -1)
+	for _, match := range matches {
+		path := match[1]
+		// Skip if path is empty (though regex avoids empty)
+		if path == "" {
+			continue
+		}
+
+		// Direct read, bypassing permissions for user-initiated @mentions
+		content, err := os.ReadFile(path)
+		var resp map[string]any
+		if err != nil {
+			resp = map[string]any{"error": err.Error()}
+		} else {
+			resp = map[string]any{"result": string(content)}
+		}
+
+		// Simulate Model Function Call to satisfy history requirements
+		s.History = append(s.History, &genai.Content{
+			Role: "model",
+			Parts: []*genai.Part{
+				{
+					FunctionCall: &genai.FunctionCall{
+						Name: "read_file",
+						Args: map[string]any{"path": path},
+					},
+				},
+			},
+		})
+
+		// Simulate Tool Response
+		toolResponseContent := &genai.Content{
+			Role: "tool",
+			Parts: []*genai.Part{
+				{
+					FunctionResponse: &genai.FunctionResponse{
+						Name:     "read_file",
+						Response: resp,
+					},
+				},
+			},
+		}
+		s.History = append(s.History, toolResponseContent)
+
+		// Include in context management tracking
+		s.ReadFiles[path] = toolResponseContent
 	}
 }
 
@@ -168,10 +227,68 @@ func (s *Session) handleToolCall(ctx context.Context, fc *genai.FunctionCall) er
 		},
 	}
 	s.History = append(s.History, toolResponseContent)
+
+	// Context Management Logic
+	if toolName == "read_file" {
+		if path, ok := fc.Args["path"].(string); ok {
+			s.ReadFiles[path] = toolResponseContent
+		}
+	} else if toolName == "write_file" {
+		if path, ok := fc.Args["path"].(string); ok {
+			if existingContent, exists := s.ReadFiles[path]; exists {
+				// Invalidate the old context
+				if len(existingContent.Parts) > 0 && existingContent.Parts[0].FunctionResponse != nil {
+					existingContent.Parts[0].FunctionResponse.Response = map[string]any{
+						"result": fmt.Sprintf("File %s has been modified by write_file. Content is outdated.", path),
+					}
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+// ListReadFiles returns a list of files currently in the context.
+func (s *Session) ListReadFiles() []string {
+	var files []string
+	for path := range s.ReadFiles {
+		files = append(files, path)
+	}
+	return files
+}
+
+// UpdateFileContext forces a refresh of a file's content in the context.
+func (s *Session) UpdateFileContext(ctx context.Context, path string) error {
+	contentPtr, exists := s.ReadFiles[path]
+	if !exists {
+		return fmt.Errorf("file %s is not in the context", path)
+	}
+
+	tool, ok := s.Agent.Tools["read_file"]
+	if !ok {
+		return errors.New("read_file tool not available")
+	}
+
+	// We execute the tool directly, bypassing middleware/history append
+	// because we are updating existing history in-place.
+	newContent, err := tool.Run(ctx, map[string]any{"path": path})
+	if err != nil {
+		return err
+	}
+
+	// Update the existing content in history
+	if len(contentPtr.Parts) > 0 && contentPtr.Parts[0].FunctionResponse != nil {
+		contentPtr.Parts[0].FunctionResponse.Response = map[string]any{
+			"result": newContent,
+		}
+	}
+
 	return nil
 }
 
 // ClearHistory resets the conversation history.
 func (s *Session) ClearHistory() {
 	s.History = make([]*genai.Content, 0)
+	s.ReadFiles = make(map[string]*genai.Content)
 }
