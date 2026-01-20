@@ -12,6 +12,8 @@ import (
 	"google.golang.org/genai"
 )
 
+var atFileRegex = regexp.MustCompile(`@(\S+)`)
+
 // Session manages the state of a conversation.
 type Session struct {
 	ID             string
@@ -43,56 +45,8 @@ func (s *Session) Chat(ctx context.Context, prompt string) (string, error) {
 	// Add user message to history
 	s.History = append(s.History, genai.NewContentFromText(prompt, genai.RoleUser))
 
-	// Process prompt for @file references and simulate tool calls for context tracking
-	re := regexp.MustCompile(`@(\S+)`)
-	matches := re.FindAllStringSubmatch(prompt, -1)
-
-	for _, match := range matches {
-		path := match[1]
-		// Skip if already processed in this turn or if path is empty (though regex avoids empty)
-		if path == "" {
-			continue
-		}
-
-		// Direct read, bypassing permissions for user-initiated @mentions
-		content, err := os.ReadFile(path)
-		var resp map[string]any
-		if err != nil {
-			resp = map[string]any{"error": err.Error()}
-		} else {
-			resp = map[string]any{"result": string(content)}
-		}
-
-		// Simulate Model Function Call to satisfy history requirements
-		s.History = append(s.History, &genai.Content{
-			Role: "model",
-			Parts: []*genai.Part{
-				{
-					FunctionCall: &genai.FunctionCall{
-						Name: "read_file",
-						Args: map[string]any{"path": path},
-					},
-				},
-			},
-		})
-
-		// Simulate Tool Response
-		toolResponseContent := &genai.Content{
-			Role: "tool",
-			Parts: []*genai.Part{
-				{
-					FunctionResponse: &genai.FunctionResponse{
-						Name:     "read_file",
-						Response: resp,
-					},
-				},
-			},
-		}
-		s.History = append(s.History, toolResponseContent)
-
-		// Include in context management tracking
-		s.ReadFiles[path] = toolResponseContent
-	}
+	// Inject file content referenced by @mentions
+	s.handleFileMentions(prompt)
 
 	// Prepare tools
 	var funcDecls []*genai.FunctionDeclaration
@@ -153,6 +107,56 @@ func (s *Session) Chat(ctx context.Context, prompt string) (string, error) {
 				// or just log it. handleToolCall adds the response to history.
 			}
 		}
+	}
+}
+
+func (s *Session) handleFileMentions(prompt string) {
+	matches := atFileRegex.FindAllStringSubmatch(prompt, -1)
+	for _, match := range matches {
+		path := match[1]
+		// Skip if path is empty (though regex avoids empty)
+		if path == "" {
+			continue
+		}
+
+		// Direct read, bypassing permissions for user-initiated @mentions
+		content, err := os.ReadFile(path)
+		var resp map[string]any
+		if err != nil {
+			resp = map[string]any{"error": err.Error()}
+		} else {
+			resp = map[string]any{"result": string(content)}
+		}
+
+		// Simulate Model Function Call to satisfy history requirements
+		s.History = append(s.History, &genai.Content{
+			Role: "model",
+			Parts: []*genai.Part{
+				{
+					FunctionCall: &genai.FunctionCall{
+						Name: "read_file",
+						Args: map[string]any{"path": path},
+					},
+				},
+			},
+		})
+
+		// Simulate Tool Response
+		toolResponseContent := &genai.Content{
+			Role: "tool",
+			Parts: []*genai.Part{
+				{
+					FunctionResponse: &genai.FunctionResponse{
+						Name:     "read_file",
+						Response: resp,
+					},
+				},
+			},
+		}
+		s.History = append(s.History, toolResponseContent)
+
+		// Include in context management tracking
+		s.ReadFiles[path] = toolResponseContent
 	}
 }
 
