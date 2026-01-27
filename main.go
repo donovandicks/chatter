@@ -8,6 +8,7 @@ import (
 
 	"github.com/donovandicks/chatter/ai"
 	"github.com/donovandicks/chatter/internal/auth"
+	"github.com/donovandicks/chatter/internal/config"
 	"github.com/donovandicks/chatter/ui"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -16,6 +17,16 @@ import (
 
 func main() {
 	ctx := context.Background()
+
+	// Load Configuration
+	cfg, err := config.Load()
+	if err != nil {
+		// Log error but continue with defaults? Or fatal?
+		// Let's log and continue with defaults if Load returns nil (which it might not if error).
+		// config.Load returns defaults if file missing, but error if read fails.
+		fmt.Printf("Warning: failed to load config: %v. Using defaults.\n", err)
+		cfg = &config.Config{AutoPruneTokenLimit: config.DefaultAutoPruneTokenLimit}
+	}
 
 	// Initialize permission system
 	permManager := auth.NewPermissionManager()
@@ -29,6 +40,7 @@ func main() {
 
 	// Create Session
 	session := agent.NewSession("cli-session")
+	session.AutoPruneTokenLimit = cfg.AutoPruneTokenLimit
 
 	p := tea.NewProgram(ui.NewModel(session, permRequester))
 	if _, err := p.Run(); err != nil {

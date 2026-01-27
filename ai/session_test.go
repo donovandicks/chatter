@@ -7,6 +7,7 @@ import (
 
 	"github.com/donovandicks/chatter/ai/tools"
 	"github.com/donovandicks/chatter/internal/auth"
+	"github.com/donovandicks/chatter/internal/config"
 	"google.golang.org/genai"
 )
 
@@ -199,5 +200,52 @@ func TestSession_Chat_AtFile(t *testing.T) {
 	// Verify file is tracked in context
 	if _, ok := session.ReadFiles[path]; !ok {
 		t.Errorf("File %s not tracked in ReadFiles", path)
+	}
+}
+
+func TestSession_PruneHistory(t *testing.T) {
+	// Setup Session
+	agent := &Agent{
+		Model: "test-model",
+	}
+	session := NewSession(agent, "test-session")
+	
+	// Create history with 10 tool outputs
+	for i := 0; i < 10; i++ {
+		session.History = append(session.History, &genai.Content{
+			Role: "tool",
+			Parts: []*genai.Part{
+				{
+					FunctionResponse: &genai.FunctionResponse{
+						Name: "some_tool",
+						Response: map[string]any{"result": "verbose output"},
+					},
+				},
+			},
+		})
+	}
+	
+	// Prune (limit ignored in current implementation, relying on hardcoded count)
+	// We pass a dummy limit
+	session.PruneHistory(config.DefaultAutoPruneTokenLimit)
+	
+	// Expect last 5 to be intact, first 5 to be pruned
+	prunedCount := 0
+	intactCount := 0
+	
+	for _, msg := range session.History {
+		resp := msg.Parts[0].FunctionResponse.Response["result"]
+		if resp == "[Output pruned to save context]" {
+			prunedCount++
+		} else if resp == "verbose output" {
+			intactCount++
+		}
+	}
+	
+	if prunedCount != 5 {
+		t.Errorf("Expected 5 pruned messages, got %d", prunedCount)
+	}
+	if intactCount != 5 {
+		t.Errorf("Expected 5 intact messages, got %d", intactCount)
 	}
 }
