@@ -2,7 +2,6 @@ package ai
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"github.com/donovandicks/chatter/ai/tools"
@@ -87,7 +86,7 @@ func TestSession_FileContext(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	err := session.handleToolCall(ctx, readCall)
+	err := session.handleToolCall(ctx, &genai.Part{FunctionCall: readCall, ThoughtSignature: []byte("dummy")})
 	if err != nil {
 		t.Fatalf("handleToolCall read failed: %v", err)
 	}
@@ -109,7 +108,7 @@ func TestSession_FileContext(t *testing.T) {
 		Name: "write_file",
 		Args: map[string]any{"path": "test.txt"},
 	}
-	err = session.handleToolCall(ctx, writeCall)
+	err = session.handleToolCall(ctx, &genai.Part{FunctionCall: writeCall, ThoughtSignature: []byte("dummy")})
 	if err != nil {
 		t.Fatalf("handleToolCall write failed: %v", err)
 	}
@@ -143,65 +142,7 @@ func TestSession_FileContext(t *testing.T) {
 	}
 }
 
-func TestSession_Chat_AtFile(t *testing.T) {
-	// Create a temp file
-	tmpFile, err := os.CreateTemp("", "testfile-*.txt")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.Remove(tmpFile.Name())
 
-	content := "Hello AtFile"
-	if _, err := tmpFile.WriteString(content); err != nil {
-		t.Fatal(err)
-	}
-	tmpFile.Close()
-
-	// Setup Agent with Mock Provider
-	mockProvider := &MockProvider{
-		GenerateContentFunc: func(ctx context.Context, history []*genai.Content, opts GenerateOptions) (*genai.GenerateContentResponse, error) {
-			// Check if history contains the file content as a tool response
-			// History should be: [UserMsg, ModelCall, ToolResponse]
-			if len(history) < 3 {
-				t.Errorf("Expected at least 3 messages in history, got %d", len(history))
-				return nil, nil
-			}
-			toolMsg := history[len(history)-1]
-			if toolMsg.Role != "tool" {
-				t.Errorf("Expected last message to be 'tool', got %s", toolMsg.Role)
-			}
-			resp := toolMsg.Parts[0].FunctionResponse.Response["result"]
-			if resp != "Hello AtFile" {
-				t.Errorf("Expected 'Hello AtFile', got %v", resp)
-			}
-			return &genai.GenerateContentResponse{
-				Candidates: []*genai.Candidate{
-					{Content: &genai.Content{Parts: []*genai.Part{{Text: "OK"}}}},
-				},
-			}, nil
-		},
-	}
-
-	agent := &Agent{
-		Provider: mockProvider,
-		Model:    "test-model",
-	}
-	session := NewSession(agent, "test-session")
-
-	// Call Chat with @filename
-	ctx := context.Background()
-	path := tmpFile.Name()
-	prompt := "Read @" + path
-	_, err = session.Chat(ctx, prompt)
-	if err != nil {
-		t.Fatalf("Chat failed: %v", err)
-	}
-
-	// Verify file is tracked in context
-	if _, ok := session.ReadFiles[path]; !ok {
-		t.Errorf("File %s not tracked in ReadFiles", path)
-	}
-}
 
 func TestSession_PruneHistory(t *testing.T) {
 	// Setup Session

@@ -5,14 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"os"
-	"regexp"
 	"time"
 
 	"google.golang.org/genai"
 )
-
-var atFileRegex = regexp.MustCompile(`@(\S+)`)
 
 // Session manages the state of a conversation.
 type Session struct {
@@ -51,19 +47,12 @@ func (s *Session) Chat(ctx context.Context, prompt string) (string, error) {
 	// Add user message to history
 	s.History = append(s.History, genai.NewContentFromText(prompt, genai.RoleUser))
 
-	// Inject file content referenced by @mentions
-	s.handleFileMentions(prompt)
-
 	// Prepare tools
-	var funcDecls []*genai.FunctionDeclaration
+	var genaiTools []*genai.Tool
 	for _, t := range s.Agent.Tools {
-		funcDecls = append(funcDecls, t.Decl())
-	}
-	// Wrap in GenAI Tool struct
-	genaiTools := []*genai.Tool{
-		{
-			FunctionDeclarations: funcDecls,
-		},
+		genaiTools = append(genaiTools, &genai.Tool{
+			FunctionDeclarations: []*genai.FunctionDeclaration{t.Decl()},
+		})
 	}
 
 	opts := GenerateOptions{
@@ -95,10 +84,10 @@ func (s *Session) Chat(ctx context.Context, prompt string) (string, error) {
 		candidate := response.Candidates[0]
 		s.History = append(s.History, candidate.Content)
 
-		var functionCalls []*genai.FunctionCall
+		var functionCalls []*genai.Part
 		for _, part := range candidate.Content.Parts {
 			if part.FunctionCall != nil {
-				functionCalls = append(functionCalls, part.FunctionCall)
+				functionCalls = append(functionCalls, part)
 			}
 		}
 
@@ -116,55 +105,7 @@ func (s *Session) Chat(ctx context.Context, prompt string) (string, error) {
 	}
 }
 
-func (s *Session) handleFileMentions(prompt string) {
-	matches := atFileRegex.FindAllStringSubmatch(prompt, -1)
-	for _, match := range matches {
-		path := match[1]
-		// Skip if path is empty (though regex avoids empty)
-		if path == "" {
-			continue
-		}
 
-		// Direct read, bypassing permissions for user-initiated @mentions
-		content, err := os.ReadFile(path)
-		var resp map[string]any
-		if err != nil {
-			resp = map[string]any{"error": err.Error()}
-		} else {
-			resp = map[string]any{"result": string(content)}
-		}
-
-		// Simulate Model Function Call to satisfy history requirements
-		s.History = append(s.History, &genai.Content{
-			Role: "model",
-			Parts: []*genai.Part{
-				{
-					FunctionCall: &genai.FunctionCall{
-						Name: "read_file",
-						Args: map[string]any{"path": path},
-					},
-				},
-			},
-		})
-
-		// Simulate Tool Response
-		toolResponseContent := &genai.Content{
-			Role: "tool",
-			Parts: []*genai.Part{
-				{
-					FunctionResponse: &genai.FunctionResponse{
-						Name:     "read_file",
-						Response: resp,
-					},
-				},
-			},
-		}
-		s.History = append(s.History, toolResponseContent)
-
-		// Include in context management tracking
-		s.ReadFiles[path] = toolResponseContent
-	}
-}
 
 func (s *Session) updateTokenStats(response *genai.GenerateContentResponse) {
 	if response.UsageMetadata != nil {
@@ -186,7 +127,17 @@ func (s *Session) updateTokenStats(response *genai.GenerateContentResponse) {
 	}
 }
 
-func (s *Session) handleToolCall(ctx context.Context, fc *genai.FunctionCall) error {
+func (s *Session) handleToolCall(ctx context.Context, tc *genai.Part) error {
+	if tc.FunctionCall == nil {
+		return fmt.Errorf("received non-function call part in handleToolCall")
+	}
+
+	if tc.ThoughtSignature == nil {
+		return fmt.Errorf("tool call had empty thought signature")
+	}
+
+	fc := tc.FunctionCall
+
 	toolName := fc.Name
 	tool, ok := s.Agent.Tools[toolName]
 
@@ -229,6 +180,7 @@ func (s *Session) handleToolCall(ctx context.Context, fc *genai.FunctionCall) er
 					Name:     toolName,
 					Response: resp,
 				},
+				ThoughtSignature: tc.ThoughtSignature,
 			},
 		},
 	}
@@ -323,7 +275,7 @@ func (s *Session) PruneHistory(tokenLimit int) {
 			}
 		}
 	}
-	
+
 	// If we really wanted to enforce token limit, we'd need to count tokens.
 	// For now, this is the "Tool Output Collapse" strategy from the RFC.
 }
@@ -371,21 +323,6 @@ func (s *Session) Compress(ctx context.Context, customInstructions string) error
 			},
 		},
 	}
-	
-	// We deliberately keep s.ReadFiles intact as per RFC, 
-	// but we might need to ensure they are re-injected if they were part of the pruned history?
-	// The RFC says: "When compressing, we keep the ReadFiles map. The summary becomes the 'new' start of the conversation."
-	// And "If we prune a read_file tool response, we might want to ensure the ReadFiles map is still accurate".
-	// s.ReadFiles points to *genai.Content objects. If those objects were in s.History, they are now gone from s.History.
-	// But the map still holds pointers to them. 
-	// If the user @mentions them again, we use handleFileMentions which appends NEW history entries.
-	// So keeping the map is fine for `ListReadFiles` but they aren't in the LLM context anymore unless we re-inject them.
-	// The RFC mentions: "Keep ReadFiles intact so the agent still 'knows' the file contents without re-reading... The Session struct keeps ReadFiles separate... but handleFileMentions injects them into history."
-	// So if we clear history, those file contents are GONE from the LLM context.
-	// To keep them available to the LLM, we should probably re-inject them?
-	// Or maybe the summary is enough? 
-	// "Context Loss: Pruning might remove a file definition... Mitigation: We treat ReadFiles somewhat specially."
-	// Let's stick to the simple implementation first: clear history, keep the map (so /context files:list works), and let the user re-read if needed, OR the summary should mention "I have read file X".
-	
+
 	return nil
 }
