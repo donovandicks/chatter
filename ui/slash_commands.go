@@ -42,6 +42,33 @@ func NewSlashCommandHandler() *SlashCommandHandler {
 				},
 			},
 			{
+				Name:        "/compress",
+				Description: "Summarize and compact conversation history",
+				Execute: func(m *model, args []string) (tea.Model, tea.Cmd) {
+					var instructions string
+					if len(args) > 0 {
+						instructions = strings.Join(args, " ")
+					}
+
+					return m, func() tea.Msg {
+						// This is a blocking call to the LLM, so run in a Cmd
+						err := m.session.Compress(context.Background(), instructions)
+						if err != nil {
+							return chatMessage{
+								Sender:  "System",
+								Content: fmt.Sprintf("Compression failed: %v", err),
+								IsUser:  false,
+							}
+						}
+						return chatMessage{
+							Sender:  "System",
+							Content: "Conversation compressed.",
+							IsUser:  false,
+						}
+					}
+				},
+			},
+			{
 				Name:        "/context",
 				Description: "Manage context (files:list, files:update)",
 				Execute: func(m *model, args []string) (tea.Model, tea.Cmd) {

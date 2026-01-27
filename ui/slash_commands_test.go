@@ -29,7 +29,9 @@ func TestSlashCommandHandler_Update(t *testing.T) {
 	}
 
 	// 3. Select
-	// KeyDown (moves to /context)
+	// KeyDown (moves to /compress)
+	sh.Update(tea.KeyMsg{Type: tea.KeyDown}, "/c")
+	// Another KeyDown (moves to /context)
 	sh.Update(tea.KeyMsg{Type: tea.KeyDown}, "/c")
 	// KeyEnter
 	handled, cmdName, execute := sh.Update(tea.KeyMsg{Type: tea.KeyEnter}, "/c")

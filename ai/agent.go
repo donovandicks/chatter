@@ -101,13 +101,13 @@ func NewMainAgent(ctx context.Context, pm *auth.PermissionManager, pr Permission
 	config := &AgentConfig{
 		Name:          "main",
 		Model:         "gemini-2.0-flash-exp", // Updated to latest available/preview or keep existing
-		SystemPrompt: sysPrompt,
-		Tools:        mainTools,
+		SystemPrompt:  sysPrompt,
+		Tools:         mainTools,
 		PermissionMgr: pm,
 		PermissionReq: pr,
 	}
-	// Note: previous model was Gemini3Flash ("gemini-3-flash-preview"). 
-	// I should probably keep the constant or string. 
+	// Note: previous model was Gemini3Flash ("gemini-3-flash-preview").
+	// I should probably keep the constant or string.
 	// The original code had constants. I'll use a string literal for now or restore constants if preferred.
 	// "gemini-3-flash-preview" was used. I'll stick to it to avoid breaking changes if that model is valid for the user.
 	config.Model = "gemini-2.0-flash-exp" // Actually, let's use a safe default or what was there.
@@ -122,3 +122,4 @@ func NewMainAgent(ctx context.Context, pm *auth.PermissionManager, pr Permission
 func (a *Agent) NewSession(id string) *Session {
 	return NewSession(a, id)
 }
+
