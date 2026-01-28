@@ -11,6 +11,8 @@ import (
 	"google.golang.org/genai"
 )
 
+const DefaultMaxTurns = 10
+
 // Session manages the state of a conversation.
 type Session struct {
 	ID                  string
@@ -26,17 +28,17 @@ type Session struct {
 // NewSession creates a new session for the given agent.
 func NewSession(agent *Agent, id string) *Session {
 	return &Session{
-		ID:             id,
-		Agent:          agent,
-		History:        make([]*genai.Content, 0),
-		ToolMiddleware: agent.Middleware, // Inherit middleware from agent
+		ID             : id,
+		Agent          : agent,
+		History        : make([]*genai.Content, 0),
+		ToolMiddleware : agent.Middleware, // Inherit middleware from agent
 		Stats: SessionStats{
-			SessionID:  id,
-			StartTime:  time.Now(),
-			ModelUsage: make(map[string]*ModelUsage),
+			SessionID  : id,
+			StartTime  : time.Now(),
+			ModelUsage : make(map[string]*ModelUsage),
 		},
 		ReadFiles: make(map[string]*genai.Content),
-		MaxTurns:  10,
+		MaxTurns  : DefaultMaxTurns,
 	}
 }
 
@@ -59,37 +61,22 @@ func (s *Session) Chat(ctx context.Context, prompt string) (string, error) {
 	}
 
 	opts := GenerateOptions{
-		Model:             s.Agent.Model,
-		SystemInstruction: s.Agent.SystemPrompt,
-		Tools:             genaiTools,
+		Model             : s.Agent.Model,
+		SystemInstruction : s.Agent.SystemPrompt,
+		Tools             : genaiTools,
 	}
 
 	maxTurns := s.MaxTurns
 	if maxTurns <= 0 {
-		maxTurns = 10
+		maxTurns = DefaultMaxTurns
 	}
 
 	for turn := 0; turn < maxTurns; turn++ {
-		start := time.Now()
-
-		response, err := s.Agent.Provider.GenerateContent(ctx, s.History, opts)
-		s.Stats.ApiDuration += time.Since(start)
-
+		candidate, err := s.generateStep(ctx, opts)
 		if err != nil {
-			if errors.Is(err, context.Canceled) {
-				return "", err
-			}
-			slog.ErrorContext(ctx, "failed to generate AI response", "error", err)
 			return "", err
 		}
 
-		s.updateTokenStats(response)
-
-		if len(response.Candidates) == 0 {
-			return "", errors.New("no candidates returned")
-		}
-
-		candidate := response.Candidates[0]
 		s.History = append(s.History, candidate.Content)
 
 		var functionCalls []*genai.Part
@@ -100,7 +87,8 @@ func (s *Session) Chat(ctx context.Context, prompt string) (string, error) {
 		}
 
 		if len(functionCalls) == 0 {
-			return response.Text(), nil
+			// No function calls, we are done.
+			return s.getTextResponse(candidate), nil
 		}
 
 		// Handle function calls
@@ -122,24 +110,47 @@ func (s *Session) Chat(ctx context.Context, prompt string) (string, error) {
 	finalOpts := opts
 	finalOpts.Tools = nil // No tools for the final turn
 
+	candidate, err := s.generateStep(ctx, finalOpts)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate final response after max turns: %w", err)
+	}
+	s.History = append(s.History, candidate.Content)
+
+	return s.getTextResponse(candidate) + "\n\n(Max turns reached; task may be incomplete.)", nil
+}
+
+// generateStep handles a single generation step: API call, stats update, and basic validation.
+func (s *Session) generateStep(ctx context.Context, opts GenerateOptions) (*genai.Candidate, error) {
 	start := time.Now()
-	response, err := s.Agent.Provider.GenerateContent(ctx, s.History, finalOpts)
+	response, err := s.Agent.Provider.GenerateContent(ctx, s.History, opts)
 	s.Stats.ApiDuration += time.Since(start)
 
 	if err != nil {
-		return "", fmt.Errorf("failed to generate final response after max turns: %w", err)
+		if errors.Is(err, context.Canceled) {
+			return nil, err
+		}
+		slog.ErrorContext(ctx, "failed to generate AI response", "error", err)
+		return nil, err
 	}
 
 	s.updateTokenStats(response)
 
 	if len(response.Candidates) == 0 {
-		return "", errors.New("no candidates returned in final turn")
+		return nil, errors.New("no candidates returned")
 	}
 
-	candidate := response.Candidates[0]
-	s.History = append(s.History, candidate.Content)
+	return response.Candidates[0], nil
+}
 
-	return response.Text() + "\n\n(Max turns reached; task may be incomplete.)", nil
+// getTextResponse extracts the text from a candidate.
+func (s *Session) getTextResponse(candidate *genai.Candidate) string {
+	var sb strings.Builder
+	for _, part := range candidate.Content.Parts {
+		if part.Text != "" {
+			sb.WriteString(part.Text)
+		}
+	}
+	return sb.String()
 }
 
 func (s *Session) updateTokenStats(response *genai.GenerateContentResponse) {
@@ -362,8 +373,8 @@ func (s *Session) Compress(ctx context.Context, customInstructions string) error
 	// We use the agent's provider to generate the summary.
 	// We don't want to use tools for this, just text generation.
 	opts := GenerateOptions{
-		Model:             s.Agent.Model,
-		SystemInstruction: s.Agent.SystemPrompt,
+		Model             : s.Agent.Model,
+		SystemInstruction : s.Agent.SystemPrompt,
 	}
 
 	resp, err := s.Agent.Provider.GenerateContent(ctx, summaryHistory, opts)
