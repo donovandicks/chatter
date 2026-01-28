@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/donovandicks/chatter/ai"
 	"github.com/donovandicks/chatter/internal/auth"
@@ -32,6 +33,7 @@ type model struct {
 	session           *ai.Session
 	spinner           spinner.Model
 	isLoading         bool
+	requestStart      time.Time
 	err               error
 	autocomplete      *Autocomplete
 	slashCommands     *SlashCommandHandler
@@ -326,7 +328,8 @@ func (m model) footerView() string {
 	}
 
 	if m.isLoading {
-		return fmt.Sprintf("\n%s %s", m.spinner.View(), "Thinking... (Esc to cancel)")
+		duration := time.Since(m.requestStart).Round(time.Second)
+		return fmt.Sprintf("\n%s Thinking... (%s) (Esc to cancel)", m.spinner.View(), duration.String())
 	}
 
 	suggestionsView := m.autocomplete.View()
@@ -361,6 +364,7 @@ func (m model) handleSendMessage() (tea.Model, tea.Cmd) {
 	m.viewport.GotoBottom()
 
 	m.isLoading = true
+	m.requestStart = time.Now()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	m.cancelRequest = cancel
