@@ -202,10 +202,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.cancelRequest = nil
 				m.isLoading = false
 				m.messages = append(m.messages, chatMessage{
-						Sender:  "System",
-						Content: "Request cancelled.",
-						IsUser:  false,
-					})
+					Sender:  "System",
+					Content: "Request cancelled.",
+					IsUser:  false,
+				})
 				m.viewport.SetContent(m.renderMessages())
 				m.viewport.GotoBottom()
 				m = m.recalculateViewportHeight()
@@ -257,10 +257,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Always display write diffs in the chat, even if pre-approved
 			if msg.Action.Diff != "" {
 				m.messages = append(m.messages, chatMessage{
-						Sender:  "System",
-						Content: fmt.Sprintf("Auto-approved %s on %s:\n%s", msg.Action.Operation, msg.Action.Target, StyleDiff(msg.Action.Diff)),
-						IsUser:  false,
-					})
+					Sender:  "System",
+					Content: fmt.Sprintf("Auto-approved %s on %s:\n%s", msg.Action.Operation, msg.Action.Target, StyleDiff(msg.Action.Diff)),
+					IsUser:  false,
+				})
 				m.viewport.SetContent(m.renderMessages())
 				m.viewport.GotoBottom()
 				m = m.recalculateViewportHeight()

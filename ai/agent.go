@@ -115,4 +115,3 @@ func NewMainAgent(ctx context.Context, pm *auth.PermissionManager, pr Permission
 func (a *Agent) NewSession(id string) *Session {
 	return NewSession(a, id)
 }
-

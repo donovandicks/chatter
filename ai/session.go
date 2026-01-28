@@ -105,8 +105,6 @@ func (s *Session) Chat(ctx context.Context, prompt string) (string, error) {
 	}
 }
 
-
-
 func (s *Session) updateTokenStats(response *genai.GenerateContentResponse) {
 	if response.UsageMetadata != nil {
 		inputTokens := int(response.UsageMetadata.PromptTokenCount)

@@ -50,7 +50,7 @@ func TestPermissionMiddleware(t *testing.T) {
 	}
 
 	middleware := NewPermissionMiddleware(pm, pr)
-	
+
 	// Mock next handler
 	nextHandler := func(ctx context.Context, args map[string]any) (string, error) {
 		return "executed", nil

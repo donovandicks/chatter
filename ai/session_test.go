@@ -138,7 +138,7 @@ func TestSession_PruneHistory(t *testing.T) {
 		Model: "test-model",
 	}
 	session := NewSession(agent, "test-session")
-	
+
 	// Create history with 10 tool outputs
 	for i := 0; i < 10; i++ {
 		session.History = append(session.History, &genai.Content{
@@ -146,22 +146,22 @@ func TestSession_PruneHistory(t *testing.T) {
 			Parts: []*genai.Part{
 				{
 					FunctionResponse: &genai.FunctionResponse{
-						Name: "some_tool",
+						Name:     "some_tool",
 						Response: map[string]any{"result": "verbose output"},
 					},
 				},
 			},
 		})
 	}
-	
+
 	// Prune (limit ignored in current implementation, relying on hardcoded count)
 	// We pass a dummy limit
 	session.PruneHistory(config.DefaultAutoPruneTokenLimit)
-	
+
 	// Expect last 5 to be intact, first 5 to be pruned
 	prunedCount := 0
 	intactCount := 0
-	
+
 	for _, msg := range session.History {
 		resp := msg.Parts[0].FunctionResponse.Response["result"]
 		if resp == "[Output pruned to save context]" {
@@ -170,7 +170,7 @@ func TestSession_PruneHistory(t *testing.T) {
 			intactCount++
 		}
 	}
-	
+
 	assert.Equal(t, 5, prunedCount, "Expected 5 pruned messages")
 	assert.Equal(t, 5, intactCount, "Expected 5 intact messages")
 }
