@@ -237,3 +237,60 @@ func TestSession_PruneHistory(t *testing.T) {
 	assert.Equal(t, 5, prunedCount, "Expected 5 pruned messages")
 	assert.Equal(t, 5, intactCount, "Expected 5 intact messages")
 }
+
+func TestSession_MaxTurns(t *testing.T) {
+	calls := 0
+	mockProvider := &MockProvider{
+		GenerateContentFunc: func(ctx context.Context, history []*genai.Content, opts GenerateOptions) (*genai.GenerateContentResponse, error) {
+			calls++
+			if opts.Tools != nil {
+				// Return a tool call to keep the loop going
+				return &genai.GenerateContentResponse{
+					Candidates: []*genai.Candidate{
+						{
+							Content: &genai.Content{
+								Parts: []*genai.Part{
+									{
+										FunctionCall: &genai.FunctionCall{
+											Name: "mock_tool",
+											Args: map[string]any{},
+										},
+										ThoughtSignature: []byte("thought"),
+									},
+								},
+							},
+						},
+					},
+				}, nil
+			}
+			// Return a final text response
+			return &genai.GenerateContentResponse{
+				Candidates: []*genai.Candidate{
+					{
+						Content: &genai.Content{
+							Parts: []*genai.Part{{Text: "Final summary"}},
+						},
+					},
+				},
+			}, nil
+		},
+	}
+
+	agent := &Agent{
+		Model:    "test-model",
+		Tools:    map[string]tools.FunctionTool{"mock_tool": MockTool{NameVal: "mock_tool"}},
+		Provider: mockProvider,
+	}
+
+	session := NewSession(agent, "test-session")
+	session.MaxTurns = 2
+
+	ctx := context.Background()
+	resp, err := session.Chat(ctx, "Start loop")
+	assert.NoError(t, err)
+
+	// Expect 2 turns with tools + 1 final turn without tools = 3 calls
+	assert.Equal(t, 3, calls)
+	assert.Contains(t, resp, "Final summary")
+	assert.Contains(t, resp, "(Max turns reached; task may be incomplete.)")
+}

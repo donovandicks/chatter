@@ -20,6 +20,7 @@ type Session struct {
 	ToolMiddleware      ToolMiddleware
 	ReadFiles           map[string]*genai.Content
 	AutoPruneTokenLimit int
+	MaxTurns            int
 }
 
 // NewSession creates a new session for the given agent.
@@ -35,6 +36,7 @@ func NewSession(agent *Agent, id string) *Session {
 			ModelUsage: make(map[string]*ModelUsage),
 		},
 		ReadFiles: make(map[string]*genai.Content),
+		MaxTurns:  10,
 	}
 }
 
@@ -62,7 +64,12 @@ func (s *Session) Chat(ctx context.Context, prompt string) (string, error) {
 		Tools:             genaiTools,
 	}
 
-	for {
+	maxTurns := s.MaxTurns
+	if maxTurns <= 0 {
+		maxTurns = 10
+	}
+
+	for turn := 0; turn < maxTurns; turn++ {
 		start := time.Now()
 
 		response, err := s.Agent.Provider.GenerateContent(ctx, s.History, opts)
@@ -104,6 +111,35 @@ func (s *Session) Chat(ctx context.Context, prompt string) (string, error) {
 			}
 		}
 	}
+
+	// If we reach here, we've exhausted maxTurns.
+	// Do one final generation forcing a text response (no tools) with a summary.
+	s.History = append(s.History, genai.NewContentFromText(
+		"Max turns reached. Please provide a final summary of your progress and what steps remain. Do not use any more tools.",
+		genai.RoleUser,
+	))
+
+	finalOpts := opts
+	finalOpts.Tools = nil // No tools for the final turn
+
+	start := time.Now()
+	response, err := s.Agent.Provider.GenerateContent(ctx, s.History, finalOpts)
+	s.Stats.ApiDuration += time.Since(start)
+
+	if err != nil {
+		return "", fmt.Errorf("failed to generate final response after max turns: %w", err)
+	}
+
+	s.updateTokenStats(response)
+
+	if len(response.Candidates) == 0 {
+		return "", errors.New("no candidates returned in final turn")
+	}
+
+	candidate := response.Candidates[0]
+	s.History = append(s.History, candidate.Content)
+
+	return response.Text() + "\n\n(Max turns reached; task may be incomplete.)", nil
 }
 
 func (s *Session) updateTokenStats(response *genai.GenerateContentResponse) {
