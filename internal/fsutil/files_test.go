@@ -3,17 +3,16 @@ package fsutil
 import (
 	"os"
 	"path/filepath"
-	"reflect"
 	"sort"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestListFiles(t *testing.T) {
 	// Create temp dir
 	tmpDir, err := os.MkdirTemp("", "fsutil_test")
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
 	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create some files and dirs
@@ -27,27 +26,21 @@ func TestListFiles(t *testing.T) {
 
 	for _, f := range files {
 		path := filepath.Join(tmpDir, f)
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(path, []byte(""), 0o644); err != nil {
-			t.Fatal(err)
-		}
+		err := os.MkdirAll(filepath.Dir(path), 0o755)
+		assert.NoError(t, err)
+		err = os.WriteFile(path, []byte(""), 0o644)
+		assert.NoError(t, err)
 	}
 
 	got, err := ListFiles(tmpDir)
-	if err != nil {
-		t.Fatalf("ListFiles failed: %v", err)
-	}
+	assert.NoError(t, err, "ListFiles failed")
 
 	expected := []string{"file1.txt", "sub/file2.go"}
 
 	sort.Strings(got)
 	sort.Strings(expected)
 
-	if !reflect.DeepEqual(got, expected) {
-		t.Errorf("Expected %v, got %v", expected, got)
-	}
+	assert.Equal(t, expected, got)
 }
 
 func TestFilterFiles(t *testing.T) {
@@ -66,8 +59,6 @@ func TestFilterFiles(t *testing.T) {
 
 	for _, tt := range tests {
 		got := FilterFiles(files, tt.query)
-		if !reflect.DeepEqual(got, tt.expected) {
-			t.Errorf("FilterFiles(%q) = %v; want %v", tt.query, got, tt.expected)
-		}
+		assert.Equal(t, tt.expected, got, "FilterFiles(%q)", tt.query)
 	}
 }

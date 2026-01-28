@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/donovandicks/chatter/internal/auth"
+	"github.com/stretchr/testify/assert"
 	"google.golang.org/genai"
 )
 
@@ -65,9 +66,7 @@ func TestPermissionMiddleware(t *testing.T) {
 	// 1. Check permissions for write_file
 	// Should request approval because not yet granted
 	_, err := middleware(ctx, tool, args, nextHandler)
-	if err != nil {
-		t.Fatalf("middleware failed: %v", err)
-	}
+	assert.NoError(t, err, "middleware failed")
 
 	expectedAction := auth.Action{
 		Type:      "file",
@@ -76,9 +75,7 @@ func TestPermissionMiddleware(t *testing.T) {
 		Diff:      "some diff",
 	}
 
-	if pr.requestedAction != expectedAction {
-		t.Errorf("Expected request for %v, got %v", expectedAction, pr.requestedAction)
-	}
+	assert.Equal(t, expectedAction, pr.requestedAction, "Expected request for %v, got %v", expectedAction, pr.requestedAction)
 
 	// 2. Grant Session Permission and check again
 	// Should STILL request approval because Diff is present (mock tool always returns diff)
@@ -88,12 +85,8 @@ func TestPermissionMiddleware(t *testing.T) {
 	pr.requestedAction = auth.Action{} // Reset
 
 	_, err = middleware(ctx, tool, args, nextHandler)
-	if err != nil {
-		t.Fatalf("middleware failed: %v", err)
-	}
+	assert.NoError(t, err, "middleware failed")
 
 	// We expect the request to still happen because of the Diff
-	if pr.requestedAction.Diff == "" {
-		t.Error("Expected request with diff even after session grant, but got none")
-	}
+	assert.NotEmpty(t, pr.requestedAction.Diff, "Expected request with diff even after session grant, but got none")
 }

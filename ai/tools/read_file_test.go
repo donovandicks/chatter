@@ -5,6 +5,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"google.golang.org/genai"
 )
 
@@ -12,38 +13,23 @@ func TestReadFile_Decl(t *testing.T) {
 	tool := ReadFile{}
 	decl := tool.Decl()
 
-	if decl == nil {
-		t.Fatal("Decl() returned nil")
-	}
-
-	if decl.Name != "read_file" {
-		t.Errorf("Expected name 'read_file', got %q", decl.Name)
-	}
-
-	if decl.Parameters == nil {
-		t.Fatal("Parameters is nil")
-	}
-
-	if decl.Parameters.Type != genai.TypeObject {
-		t.Errorf("Expected parameter type Object, got %v", decl.Parameters.Type)
-	}
+	assert.NotNil(t, decl, "Decl() returned nil")
+	assert.Equal(t, "read_file", decl.Name, "Expected name 'read_file'")
+	assert.NotNil(t, decl.Parameters, "Parameters is nil")
+	assert.Equal(t, genai.TypeObject, decl.Parameters.Type, "Expected parameter type Object")
 }
 
 func TestReadFile_Run(t *testing.T) {
 	// Create a temp file
 	tmpfile, err := os.CreateTemp("", "test_read_file")
-	if err != nil {
-		t.Fatal(err)
-	}
+	assert.NoError(t, err)
 	defer func() { _ = os.Remove(tmpfile.Name()) }() // clean up
 
 	content := "Hello, World!"
-	if _, err := tmpfile.Write([]byte(content)); err != nil {
-		t.Fatal(err)
-	}
-	if err := tmpfile.Close(); err != nil {
-		t.Fatal(err)
-	}
+	_, err = tmpfile.Write([]byte(content))
+	assert.NoError(t, err)
+	err = tmpfile.Close()
+	assert.NoError(t, err)
 
 	tool := ReadFile{}
 	args := map[string]any{
@@ -51,11 +37,6 @@ func TestReadFile_Run(t *testing.T) {
 	}
 
 	result, err := tool.Run(context.Background(), args)
-	if err != nil {
-		t.Fatalf("Run failed: %v", err)
-	}
-
-	if result != content {
-		t.Errorf("Expected content %q, got %q", content, result)
-	}
+	assert.NoError(t, err, "Run failed")
+	assert.Equal(t, content, result, "Expected content %q, got %q", content, result)
 }

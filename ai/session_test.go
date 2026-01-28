@@ -7,6 +7,7 @@ import (
 	"github.com/donovandicks/chatter/ai/tools"
 	"github.com/donovandicks/chatter/internal/auth"
 	"github.com/donovandicks/chatter/internal/config"
+	"github.com/stretchr/testify/assert"
 	"google.golang.org/genai"
 )
 
@@ -87,21 +88,16 @@ func TestSession_FileContext(t *testing.T) {
 
 	ctx := context.Background()
 	err := session.handleToolCall(ctx, &genai.Part{FunctionCall: readCall, ThoughtSignature: []byte("dummy")})
-	if err != nil {
-		t.Fatalf("handleToolCall read failed: %v", err)
-	}
+	assert.NoError(t, err, "handleToolCall read failed")
 
 	// Check if tracked
-	if _, ok := session.ReadFiles["test.txt"]; !ok {
-		t.Error("File test.txt not tracked in ReadFiles")
-	}
+	_, ok := session.ReadFiles["test.txt"]
+	assert.True(t, ok, "File test.txt not tracked in ReadFiles")
 
 	// Verify content in history
 	lastMsg := session.History[len(session.History)-1]
 	resp := lastMsg.Parts[0].FunctionResponse.Response["result"]
-	if resp != "original content" {
-		t.Errorf("Expected 'original content', got %v", resp)
-	}
+	assert.Equal(t, "original content", resp, "Expected 'original content', got %v", resp)
 
 	// 3. Simulate write_file
 	writeCall := &genai.FunctionCall{
@@ -109,17 +105,15 @@ func TestSession_FileContext(t *testing.T) {
 		Args: map[string]any{"path": "test.txt"},
 	}
 	err = session.handleToolCall(ctx, &genai.Part{FunctionCall: writeCall, ThoughtSignature: []byte("dummy")})
-	if err != nil {
-		t.Fatalf("handleToolCall write failed: %v", err)
-	}
+	assert.NoError(t, err, "handleToolCall write failed")
 
 	// Check if old context updated
 	readContent := session.ReadFiles["test.txt"]
 	updatedResp := readContent.Parts[0].FunctionResponse.Response["result"]
 	// Should contain "outdated" or similar
-	if val, ok := updatedResp.(string); !ok || val == "original content" {
-		t.Errorf("Content not updated after write. Got: %v", updatedResp)
-	}
+	val, ok := updatedResp.(string)
+	assert.True(t, ok, "Expected string response")
+	assert.NotEqual(t, "original content", val, "Content not updated after write. Got: %v", updatedResp)
 
 	// 4. Test UpdateFileContext
 	// Update mock to return new content
@@ -131,18 +125,12 @@ func TestSession_FileContext(t *testing.T) {
 	}
 
 	err = session.UpdateFileContext(ctx, "test.txt")
-	if err != nil {
-		t.Fatalf("UpdateFileContext failed: %v", err)
-	}
+	assert.NoError(t, err, "UpdateFileContext failed")
 
 	// Verify update
 	finalResp := session.ReadFiles["test.txt"].Parts[0].FunctionResponse.Response["result"]
-	if finalResp != "new content" {
-		t.Errorf("Expected 'new content', got %v", finalResp)
-	}
+	assert.Equal(t, "new content", finalResp, "Expected 'new content', got %v", finalResp)
 }
-
-
 
 func TestSession_PruneHistory(t *testing.T) {
 	// Setup Session
@@ -183,10 +171,6 @@ func TestSession_PruneHistory(t *testing.T) {
 		}
 	}
 	
-	if prunedCount != 5 {
-		t.Errorf("Expected 5 pruned messages, got %d", prunedCount)
-	}
-	if intactCount != 5 {
-		t.Errorf("Expected 5 intact messages, got %d", intactCount)
-	}
+	assert.Equal(t, 5, prunedCount, "Expected 5 pruned messages")
+	assert.Equal(t, 5, intactCount, "Expected 5 intact messages")
 }

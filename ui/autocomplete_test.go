@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestAutocomplete_Update(t *testing.T) {
@@ -17,20 +18,15 @@ func TestAutocomplete_Update(t *testing.T) {
 	// Input: "Hello @"
 	// Cursor at end
 	handled, _, _ := ac.Update(nil, "Hello @", 7)
-	if handled {
-		t.Error("Should not be handled yet, just active")
-	}
-	if !ac.Active {
-		t.Error("Should be active after typing @")
-	}
-	if len(ac.suggestions) != 3 {
-		t.Errorf("Expected 3 suggestions, got %d", len(ac.suggestions))
-	}
+	assert.False(t, handled, "Should not be handled yet, just active")
+	assert.True(t, ac.Active, "Should be active after typing @")
+	assert.Len(t, ac.suggestions, 3, "Expected 3 suggestions")
 
 	// 2. Filter with "@main"
 	ac.Update(nil, "Hello @main", 11)
-	if len(ac.suggestions) != 1 || ac.suggestions[0] != "main.go" {
-		t.Errorf("Expected main.go, got %v", ac.suggestions)
+	assert.Len(t, ac.suggestions, 1)
+	if len(ac.suggestions) > 0 {
+		assert.Equal(t, "main.go", ac.suggestions[0], "Expected main.go")
 	}
 
 	// 3. Selection
@@ -38,26 +34,16 @@ func TestAutocomplete_Update(t *testing.T) {
 	ac.suggestionIdx = 0
 	handled, newVal, newCursor := ac.Update(tea.KeyMsg{Type: tea.KeyEnter}, "Hello @main", 11)
 
-	if !handled {
-		t.Error("Expected Enter to be handled")
-	}
-		// Expect "Hello @main.go " (space added, @ preserved)
+	assert.True(t, handled, "Expected Enter to be handled")
+	// Expect "Hello @main.go " (space added, @ preserved)
 	expectedVal := "Hello @main.go "
-	if newVal != expectedVal {
-		t.Errorf("Expected %q, got %q", expectedVal, newVal)
-	}
-	if newCursor != 15 {
-		t.Errorf("Expected cursor at 15, got %d", newCursor)
-	}
-	if ac.Active {
-		t.Error("Should not be active after selection")
-	}
+	assert.Equal(t, expectedVal, newVal, "Unexpected new value")
+	assert.Equal(t, 15, newCursor, "Unexpected cursor position")
+	assert.False(t, ac.Active, "Should not be active after selection")
 
 	// 4. Alt+Enter should be ignored
 	ac.Active = true
 	ac.suggestions = []string{"main.go"}
 	handled, _, _ = ac.Update(tea.KeyMsg{Type: tea.KeyEnter, Alt: true}, "Hello @main", 11)
-	if handled {
-		t.Error("Alt+Enter should NOT be handled by autocomplete")
-	}
+	assert.False(t, handled, "Alt+Enter should NOT be handled by autocomplete")
 }

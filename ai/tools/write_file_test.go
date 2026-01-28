@@ -4,8 +4,9 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestWriteFile_Run(t *testing.T) {
@@ -19,23 +20,14 @@ func TestWriteFile_Run(t *testing.T) {
 	}
 
 	result, err := tool.Run(context.Background(), args)
-	if err != nil {
-		t.Fatalf("WriteFile.Run() failed: %v", err)
-	}
+	assert.NoError(t, err, "WriteFile.Run() failed")
 
-	if result != "Successfully wrote to "+filePath {
-		t.Errorf("Unexpected result: %s", result)
-	}
+	assert.Equal(t, "Successfully wrote to "+filePath, result, "Unexpected result")
 
 	// Verify file content
 	content, err := os.ReadFile(filePath)
-	if err != nil {
-		t.Fatalf("Failed to read created file: %v", err)
-	}
-
-	if string(content) != "Hello, World!" {
-		t.Errorf("Unexpected content: %s", string(content))
-	}
+	assert.NoError(t, err, "Failed to read created file")
+	assert.Equal(t, "Hello, World!", string(content), "Unexpected content")
 }
 
 func TestWriteFile_RequestPermission_Diff(t *testing.T) {
@@ -44,9 +36,8 @@ func TestWriteFile_RequestPermission_Diff(t *testing.T) {
 
 	// Create initial file
 	initialContent := "line 1\nline 2\nline 3"
-	if err := os.WriteFile(filePath, []byte(initialContent), 0o644); err != nil {
-		t.Fatalf("Failed to create file: %v", err)
-	}
+	err := os.WriteFile(filePath, []byte(initialContent), 0o644)
+	assert.NoError(t, err, "Failed to create file")
 
 	tool := WriteFile{}
 	newContent := "line 1\nline 2 modified\nline 3"
@@ -57,15 +48,9 @@ func TestWriteFile_RequestPermission_Diff(t *testing.T) {
 
 	action := tool.RequestPermission(args)
 
-	if action.Diff == "" {
-		t.Error("Expected diff to be generated, but it was empty")
-	}
+	assert.NotEmpty(t, action.Diff, "Expected diff to be generated, but it was empty")
 
 	// Simple check for presence of modification
-	if !strings.Contains(action.Diff, "-line 2") {
-		t.Errorf("Expected diff to contain deletion of 'line 2', got: %s", action.Diff)
-	}
-	if !strings.Contains(action.Diff, "+line 2 modified") {
-		t.Errorf("Expected diff to contain addition of 'line 2 modified', got: %s", action.Diff)
-	}
+	assert.Contains(t, action.Diff, "-line 2", "Expected diff to contain deletion of 'line 2'")
+	assert.Contains(t, action.Diff, "+line 2 modified", "Expected diff to contain addition of 'line 2 modified'")
 }
