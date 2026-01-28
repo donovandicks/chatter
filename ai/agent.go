@@ -101,7 +101,7 @@ func NewMainAgent(ctx context.Context, pm *auth.PermissionManager, pr Permission
 
 	config := &AgentConfig{
 		Name:          "main",
-		Model:         "gemini-3-flash-preview", // Updated to latest available/preview or keep existing
+		Model:         "gemini-3-flash-preview",
 		SystemPrompt:  sysPrompt,
 		Tools:         mainTools,
 		PermissionMgr: pm,

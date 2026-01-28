@@ -21,8 +21,7 @@ func main() {
 	// Load Configuration
 	cfg, err := config.Load()
 	if err != nil {
-		// Log error but continue with defaults? Or fatal?
-		// Let's log and continue with defaults if Load returns nil (which it might not if error).
+		// Log error and continue with defaults if Load returns nil (which it might not if error).
 		// config.Load returns defaults if file missing, but error if read fails.
 		fmt.Printf("Warning: failed to load config: %v. Using defaults.\n", err)
 		cfg = &config.Config{AutoPruneTokenLimit: config.DefaultAutoPruneTokenLimit}
