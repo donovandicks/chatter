@@ -95,6 +95,7 @@ func NewMainAgent(ctx context.Context, pm *auth.PermissionManager, pr Permission
 	// Define available tools for the main agent
 	mainTools := []tools.FunctionTool{
 		&tools.ReadFile{},
+		&tools.ReadManyFiles{},
 		&tools.WriteFile{},
 	}
 
