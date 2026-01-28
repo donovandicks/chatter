@@ -1,10 +1,10 @@
-# Chatter
+# Project Context: Chatter
 
 Chatter is an experimental AI coding agent designed to run in the terminal. It
 leverages the Google GenAI SDK and a TUI (Text User Interface) built with
 Bubble Tea to provide an interactive coding assistant.
 
-## Architecture
+## Project Layout
 
 The project follows a standard Go project layout:
 
@@ -18,31 +18,35 @@ The project follows a standard Go project layout:
   * `slash_commands.go`: Handles user input commands (e.g., `/help`, `/quit`).
 * **`internal/`**: Private application code.
   * `auth/`: Handles permission logic (Ask, Grant Session, Reject).
+  * `config/`: Defines the Chatter config system and default values.
   * `fsutil/`: File system utilities.
 
 ## Development
 
-### Prerequisites
+### Process
 
-* **Go:** Version 1.25+
-* **API Key:** A valid Google Gemini API key is required (usually set in a `.env` file).
+* **Development:** Write clean, well-organized code that follows the requirements.
+* **Testing:** Create and update tests for new code changes.
+* **Verification:** Use the test and lint commands below to check changes.
+* **Refinement:** Cleanup and refactor changes after the feature is complete.
+* **Finish:** Verify all changes again.
 
-### Commands
+### Commands (run with `make <command>`)
 
 The project uses a `Makefile` to automate common tasks:
 
-* **Clean:** `make clean` (Removes built binary and coverage files, if any)
-* **Build:** `make build` (Outputs binary to `./chatter`)
-* **Test:** `make test` (Runs all tests)
-* **Coverage:** `make test-cov` (Runs all tests while collecting coverage data, outputs to `./coverage.out`)
-* **Format:** `make fmt` (Applies `gofumpt`)
-* **Lint:** `make lint` (Runs `gofumpt` check and `golangci-lint`)
+* `clean` (Removes built binary and coverage files, if any)
+* `build` (Builds the binary to `./chatter`)
+* `test` (Runs all tests)
+* `test-cov` (Runs all tests while collecting coverage data, outputs to `./coverage.out`)
+* `fmt` (Formats all code)
+* `lint` (Checks formatting and linting)
 
 ### Coding Conventions
 
-* **Style:** Strict adherence to `gofumpt`.
 * **Error Handling:** Use `errors.Join(fmt.Errorf("..."), err)` for wrapping errors.
 * **Logging:** Use `log/slog` for structured logging.
 * **Concurrency:** Prefer channels and `select` for coordination; ensure `context.Context` is propagated.
 * **Testing:** Use table-driven tests for logic and `t.Run()` for subtests.
   * Use `t.Parallel()` for slow but independent tests that can safely run in parallel.
+  * Prefer the `testify/assert` package for assertions.
