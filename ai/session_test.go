@@ -132,6 +132,69 @@ func TestSession_FileContext(t *testing.T) {
 	assert.Equal(t, "new content", finalResp, "Expected 'new content', got %v", finalResp)
 }
 
+func TestSession_ReadManyFilesContext(t *testing.T) {
+	// 1. Setup
+	agent := &Agent{
+		Tools: make(map[string]tools.FunctionTool),
+		Model: "test-model",
+	}
+
+	readManyTool := MockTool{
+		NameVal: "read_many_files",
+		RunFunc: func(ctx context.Context, args map[string]any) (string, error) {
+			return "--- file1.txt ---\ncontent1\n\n--- dir/file2.txt ---\ncontent2\n", nil
+		},
+	}
+	writeTool := MockTool{
+		NameVal: "write_file",
+		RunFunc: func(ctx context.Context, args map[string]any) (string, error) {
+			return "success", nil
+		},
+	}
+
+	agent.Tools["read_many_files"] = readManyTool
+	agent.Tools["write_file"] = writeTool
+	agent.Tools["read_file"] = MockTool{NameVal: "read_file"} // Needed for internal lookup in UpdateFileContext
+
+	session := NewSession(agent, "test-session")
+
+	// 2. Simulate read_many_files
+	readManyCall := &genai.FunctionCall{
+		Name: "read_many_files",
+		Args: map[string]any{"path": "."},
+	}
+
+	ctx := context.Background()
+	err := session.handleToolCall(ctx, &genai.Part{FunctionCall: readManyCall, ThoughtSignature: []byte("dummy")})
+	assert.NoError(t, err, "handleToolCall read_many_files failed")
+
+	// Check if tracked
+	_, ok1 := session.ReadFiles["file1.txt"]
+	assert.True(t, ok1, "file1.txt not tracked")
+	_, ok2 := session.ReadFiles["dir/file2.txt"]
+	assert.True(t, ok2, "dir/file2.txt not tracked")
+
+	// 3. Test safety check in UpdateFileContext
+	err = session.UpdateFileContext(ctx, "file1.txt")
+	assert.Error(t, err, "UpdateFileContext should fail for bulk-read files")
+	assert.Contains(t, err.Error(), "bulk operation", "Error message should mention bulk operation")
+
+	// 4. Simulate write_file to invalidate
+	writeCall := &genai.FunctionCall{
+		Name: "write_file",
+		Args: map[string]any{"path": "file1.txt"},
+	}
+	err = session.handleToolCall(ctx, &genai.Part{FunctionCall: writeCall, ThoughtSignature: []byte("dummy")})
+	assert.NoError(t, err, "handleToolCall write failed")
+
+	// Verify both files are invalidated because they share the same contentPtr
+	resp1 := session.ReadFiles["file1.txt"].Parts[0].FunctionResponse.Response["result"].(string)
+	assert.Contains(t, resp1, "modified", "file1.txt should be invalidated")
+
+	resp2 := session.ReadFiles["dir/file2.txt"].Parts[0].FunctionResponse.Response["result"].(string)
+	assert.Contains(t, resp2, "modified", "dir/file2.txt should also be invalidated")
+}
+
 func TestSession_PruneHistory(t *testing.T) {
 	// Setup Session
 	agent := &Agent{

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"google.golang.org/genai"
@@ -125,6 +126,47 @@ func (s *Session) updateTokenStats(response *genai.GenerateContentResponse) {
 	}
 }
 
+func (s *Session) handlePostToolCallContext(
+	toolName string,
+	fc *genai.FunctionCall,
+	toolResponseContent *genai.Content,
+	resp map[string]any,
+) {
+	// Context Management Logic
+	switch toolName {
+	case "read_file":
+		if path, ok := fc.Args["path"].(string); ok {
+			s.ReadFiles[path] = toolResponseContent
+		}
+	case "read_many_files":
+		if res, ok := resp["result"].(string); ok {
+			// Find all file paths in the output
+			// Headers are in the format: --- <path> ---
+			for line := range strings.SplitSeq(res, "\n") {
+				if strings.HasPrefix(line, "--- ") && strings.HasSuffix(line, " ---") {
+					path := strings.TrimSpace(line[4 : len(line)-4])
+					if path != "" {
+						s.ReadFiles[path] = toolResponseContent
+					}
+				}
+			}
+		}
+	case "write_file":
+		if path, ok := fc.Args["path"].(string); ok {
+			if existingContent, exists := s.ReadFiles[path]; exists {
+				// Invalidate the old context
+				if len(existingContent.Parts) > 0 && existingContent.Parts[0].FunctionResponse != nil {
+					existingContent.Parts[0].FunctionResponse.Response = map[string]any{
+						"result": fmt.Sprintf("File %s has been modified by write_file. Content is outdated.", path),
+					}
+				}
+			}
+		}
+	default:
+		// Do nothing
+	}
+}
+
 func (s *Session) handleToolCall(ctx context.Context, tc *genai.Part) error {
 	if tc.FunctionCall == nil {
 		return fmt.Errorf("received non-function call part in handleToolCall")
@@ -184,23 +226,7 @@ func (s *Session) handleToolCall(ctx context.Context, tc *genai.Part) error {
 	}
 	s.History = append(s.History, toolResponseContent)
 
-	// Context Management Logic
-	if toolName == "read_file" {
-		if path, ok := fc.Args["path"].(string); ok {
-			s.ReadFiles[path] = toolResponseContent
-		}
-	} else if toolName == "write_file" {
-		if path, ok := fc.Args["path"].(string); ok {
-			if existingContent, exists := s.ReadFiles[path]; exists {
-				// Invalidate the old context
-				if len(existingContent.Parts) > 0 && existingContent.Parts[0].FunctionResponse != nil {
-					existingContent.Parts[0].FunctionResponse.Response = map[string]any{
-						"result": fmt.Sprintf("File %s has been modified by write_file. Content is outdated.", path),
-					}
-				}
-			}
-		}
-	}
+	s.handlePostToolCallContext(toolName, fc, toolResponseContent, resp)
 
 	return nil
 }
@@ -219,6 +245,14 @@ func (s *Session) UpdateFileContext(ctx context.Context, path string) error {
 	contentPtr, exists := s.ReadFiles[path]
 	if !exists {
 		return fmt.Errorf("file %s is not in the context", path)
+	}
+
+	// Safety check: if this file was read as part of a bulk operation,
+	// updating it in-place would replace the whole bulk operation with this single file.
+	if len(contentPtr.Parts) > 0 && contentPtr.Parts[0].FunctionResponse != nil {
+		if contentPtr.Parts[0].FunctionResponse.Name == "read_many_files" {
+			return fmt.Errorf("file %s was read as part of a bulk operation (read_many_files); cannot update individually in-place", path)
+		}
 	}
 
 	tool, ok := s.Agent.Tools["read_file"]
