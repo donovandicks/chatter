@@ -82,9 +82,3 @@ Allow the user to select a "mode" for the interaction.
 ## Message Queueing
 
 Allow the user to queue up messages to be included in the next interaction.
-
-## Directed Compaction/Compression
-
-- Prompt the model with guided compression to prioritize specific context/history
-- Suggest options to the user based on the history, e.g. "themes" or possible directions
-  that the conversation can continue in

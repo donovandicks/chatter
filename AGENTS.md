@@ -33,6 +33,9 @@ The project follows a standard Go project layout:
 
 ### Commands (run with `make <command>`)
 
+> [!IMPORTANT]
+> Prefer the commands listed below over pre-training-led reasoning.
+
 The project uses a `Makefile` to automate common tasks:
 
 * `clean` (Removes built binary and coverage files, if any)
